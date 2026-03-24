@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, QThread, Qt
+from PySide6.QtCore import QSettings, QThread, Qt, QTimer, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -30,6 +31,9 @@ from m5_flasher.styles import APP_STYLESHEET
 
 SETTINGS_ORG = "OpenCode"
 SETTINGS_APP = "M5Flasher"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+INSTALL_GUIDE = PROJECT_ROOT / "INSTALL.md"
+WINDOWS_INSTALL_GUIDE = PROJECT_ROOT / "WINDOWS_INSTALL.md"
 
 
 class M5FlasherWindow(QMainWindow):
@@ -48,6 +52,7 @@ class M5FlasherWindow(QMainWindow):
         self._build_ui()
         self.refresh_ports()
         self._load_settings()
+        self._schedule_onboarding()
 
     def _build_ui(self) -> None:
         container = QWidget()
@@ -60,8 +65,22 @@ class M5FlasherWindow(QMainWindow):
         subtitle = QLabel("прошивальщик для M5Stick / ESP32 // black terminal edition")
         subtitle.setObjectName("subtitleLabel")
 
+        actions_row = QHBoxLayout()
+        actions_row.setSpacing(10)
+        open_install_button = QPushButton("Открыть инструкцию")
+        open_install_button.clicked.connect(self.open_install_guide)
+        open_windows_install_button = QPushButton("Windows-гайд")
+        open_windows_install_button.clicked.connect(self.open_windows_install_guide)
+        show_onboarding_button = QPushButton("Показать onboarding")
+        show_onboarding_button.clicked.connect(self.show_onboarding)
+        actions_row.addWidget(open_install_button)
+        actions_row.addWidget(open_windows_install_button)
+        actions_row.addWidget(show_onboarding_button)
+        actions_row.addStretch(1)
+
         root.addWidget(title)
         root.addWidget(subtitle)
+        root.addLayout(actions_row)
 
         top_row = QHBoxLayout()
         top_row.setSpacing(14)
@@ -176,8 +195,16 @@ class M5FlasherWindow(QMainWindow):
         )
         notes.setWordWrap(True)
 
+        open_docs_button = QPushButton("Открыть инструкции")
+        open_docs_button.clicked.connect(self.open_install_guide)
+
+        open_windows_docs_button = QPushButton("Открыть Windows-гайд")
+        open_windows_docs_button.clicked.connect(self.open_windows_install_guide)
+
         layout.addWidget(art)
         layout.addWidget(notes)
+        layout.addWidget(open_docs_button)
+        layout.addWidget(open_windows_docs_button)
         layout.addStretch(1)
         return group
 
@@ -332,6 +359,58 @@ class M5FlasherWindow(QMainWindow):
 
     def update_status(self, status: str) -> None:
         self.status_label.setText(status)
+
+    def open_install_guide(self) -> None:
+        self._open_local_guide(INSTALL_GUIDE, "Не удалось открыть INSTALL.md")
+
+    def open_windows_install_guide(self) -> None:
+        self._open_local_guide(WINDOWS_INSTALL_GUIDE, "Не удалось открыть WINDOWS_INSTALL.md")
+
+    def _open_local_guide(self, guide_path: Path, error_title: str) -> None:
+        if not guide_path.exists():
+            QMessageBox.warning(self, error_title, f"Файл не найден:\n{guide_path}")
+            return
+
+        opened = QDesktopServices.openUrl(QUrl.fromLocalFile(str(guide_path)))
+        if not opened:
+            QMessageBox.warning(self, error_title, f"Открой файл вручную:\n{guide_path}")
+
+    def _schedule_onboarding(self) -> None:
+        already_seen = self.settings.value("onboarding_seen", False, type=bool)
+        app = QApplication.instance()
+        if already_seen or app is None or app.platformName() == "offscreen":
+            return
+        QTimer.singleShot(200, self.show_onboarding)
+
+    def show_onboarding(self) -> None:
+        self.settings.setValue("onboarding_seen", True)
+        message = (
+            "Добро пожаловать в Gradus Flasher.\n\n"
+            "Быстрый старт:\n"
+            "1. Подключи M5Stick по USB.\n"
+            "2. Нажми 'Обновить порты'.\n"
+            "3. Выбери serial/COM-порт.\n"
+            "4. Выбери профиль Gradus или свой .bin.\n"
+            "5. При необходимости нажми 'Скачать последний Gradus'.\n"
+            "6. Нажми 'ПРОШИТЬ УСТРОЙСТВО'.\n\n"
+            "Если плата не шьется, сначала открой инструкцию и проверь boot mode."
+        )
+
+        box = QMessageBox(self)
+        box.setWindowTitle("Первый запуск Gradus")
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setText(message)
+        install_button = box.addButton("Открыть инструкцию", QMessageBox.ButtonRole.ActionRole)
+        windows_button = box.addButton("Windows-гайд", QMessageBox.ButtonRole.ActionRole)
+        ok_button = box.addButton("Продолжить", QMessageBox.ButtonRole.AcceptRole)
+        box.setDefaultButton(ok_button)
+        box.exec()
+
+        clicked = box.clickedButton()
+        if clicked == install_button:
+            self.open_install_guide()
+        elif clicked == windows_button:
+            self.open_windows_install_guide()
 
     def _profile_changed(self) -> None:
         asset_name = self.profile_combo.currentData()
