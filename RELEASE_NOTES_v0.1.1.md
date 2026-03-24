@@ -19,4 +19,4 @@
 ## Артефакты
 
 - Linux: архив `GradusFlasher-linux-v0.1.1.tar.gz`
-- Windows: после выполнения workflow появится `GradusFlasher-windows-v0.1.1.zip`
+- Windows: архив `GradusFlasher-windows-v0.1.1.zip`

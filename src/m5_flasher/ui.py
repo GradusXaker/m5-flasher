@@ -154,6 +154,75 @@ class FlashWizardDialog(QDialog):
         self.window.probe_device()
 
 
+class AboutDialog(QDialog):
+    def __init__(self, window: "M5FlasherWindow") -> None:
+        super().__init__(window)
+        self.window = window
+        self._build_ui()
+
+    def _build_ui(self) -> None:
+        self.setWindowTitle("О программе Gradus Flasher")
+        self.resize(620, 470)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(18, 18, 18, 18)
+        root.setSpacing(12)
+
+        title = QLabel("GRADUS FLASHER")
+        title.setObjectName("titleLabel")
+        subtitle = QLabel(f"Версия {__version__}")
+        subtitle.setObjectName("subtitleLabel")
+
+        description = QLabel(
+            "Хакерский desktop-прошивальщик для M5Stick и совместимых ESP32-плат. "
+            "Приложение умеет проверять устройство, анализировать .bin, подсказывать профиль, "
+            "скачивать релизы и вести живой лог прошивки."
+        )
+        description.setWordWrap(True)
+
+        features = QLabel(
+            "- wizard первого запуска\n"
+            "- проверка устройства и chip detection\n"
+            "- анализ прошивки через esptool image-info\n"
+            "- авто-подбор профиля\n"
+            "- release center и проверка обновлений\n"
+            "- история операций"
+        )
+        features.setWordWrap(True)
+
+        release_link = QLabel(
+            '<a href="https://github.com/GradusXaker/m5-flasher/releases">Открыть релизы Gradus Flasher</a>'
+        )
+        release_link.setOpenExternalLinks(True)
+
+        repo_link = QLabel(
+            '<a href="https://github.com/GradusXaker/m5-flasher">Открыть репозиторий проекта</a>'
+        )
+        repo_link.setOpenExternalLinks(True)
+
+        button_row = QHBoxLayout()
+        install_button = QPushButton("Инструкция")
+        install_button.clicked.connect(self.window.open_install_guide)
+        windows_button = QPushButton("Windows-гайд")
+        windows_button.clicked.connect(self.window.open_windows_install_guide)
+        close_button = QPushButton("Закрыть")
+        close_button.clicked.connect(self.accept)
+
+        button_row.addWidget(install_button)
+        button_row.addWidget(windows_button)
+        button_row.addStretch(1)
+        button_row.addWidget(close_button)
+
+        root.addWidget(title)
+        root.addWidget(subtitle)
+        root.addWidget(description)
+        root.addWidget(features)
+        root.addWidget(release_link)
+        root.addWidget(repo_link)
+        root.addStretch(1)
+        root.addLayout(button_row)
+
+
 class M5FlasherWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -206,11 +275,14 @@ class M5FlasherWindow(QMainWindow):
         open_windows_install_button.clicked.connect(self.open_windows_install_guide)
         open_wizard_button = QPushButton("Мастер прошивки")
         open_wizard_button.clicked.connect(self.show_flash_wizard)
+        about_button = QPushButton("О программе")
+        about_button.clicked.connect(self.show_about_dialog)
         show_onboarding_button = QPushButton("Показать onboarding")
         show_onboarding_button.clicked.connect(self.show_onboarding)
         actions_row.addWidget(open_install_button)
         actions_row.addWidget(open_windows_install_button)
         actions_row.addWidget(open_wizard_button)
+        actions_row.addWidget(about_button)
         actions_row.addWidget(show_onboarding_button)
         actions_row.addStretch(1)
 
@@ -838,6 +910,10 @@ class M5FlasherWindow(QMainWindow):
 
     def show_flash_wizard(self) -> None:
         dialog = FlashWizardDialog(self)
+        dialog.exec()
+
+    def show_about_dialog(self) -> None:
+        dialog = AboutDialog(self)
         dialog.exec()
 
     def _open_local_guide(self, guide_path: Path, error_title: str) -> None:

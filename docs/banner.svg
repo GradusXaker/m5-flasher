@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="420" viewBox="0 0 1280 420" role="img" aria-label="Gradus Flasher banner">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#030503"/>
+      <stop offset="100%" stop-color="#071707"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1fa31f" stop-opacity="0.15"/>
+      <stop offset="50%" stop-color="#8eff8e" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#1fa31f" stop-opacity="0.15"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="420" fill="url(#bg)"/>
+  <g opacity="0.18" stroke="#1fa31f">
+    <path d="M0 70 H1280"/>
+    <path d="M0 140 H1280"/>
+    <path d="M0 210 H1280"/>
+    <path d="M0 280 H1280"/>
+    <path d="M0 350 H1280"/>
+    <path d="M120 0 V420"/>
+    <path d="M280 0 V420"/>
+    <path d="M440 0 V420"/>
+    <path d="M600 0 V420"/>
+    <path d="M760 0 V420"/>
+    <path d="M920 0 V420"/>
+    <path d="M1080 0 V420"/>
+  </g>
+  <rect x="40" y="40" width="1200" height="340" rx="24" fill="none" stroke="#1fa31f" stroke-width="2"/>
+  <rect x="56" y="56" width="1168" height="308" rx="18" fill="url(#glow)"/>
+  <g transform="translate(86 82)">
+    <text x="0" y="52" fill="#9dff9d" font-family="DejaVu Sans Mono, monospace" font-size="56" font-weight="700">GRADUS FLASHER</text>
+    <text x="0" y="100" fill="#49d349" font-family="DejaVu Sans Mono, monospace" font-size="23">Desktop flasher for M5Stick / ESP32 // cyber serial console</text>
+    <text x="0" y="165" fill="#c7ffc7" font-family="DejaVu Sans Mono, monospace" font-size="22">&gt; check device</text>
+    <text x="0" y="202" fill="#c7ffc7" font-family="DejaVu Sans Mono, monospace" font-size="22">&gt; analyze firmware</text>
+    <text x="0" y="239" fill="#c7ffc7" font-family="DejaVu Sans Mono, monospace" font-size="22">&gt; auto-pick profile</text>
+    <text x="0" y="276" fill="#c7ffc7" font-family="DejaVu Sans Mono, monospace" font-size="22">&gt; flash with live logs</text>
+  </g>
+  <g transform="translate(865 74)">
+    <rect x="0" y="0" width="300" height="232" rx="18" fill="#040904" stroke="#1fa31f" stroke-width="2"/>
+    <rect x="18" y="18" width="264" height="38" rx="8" fill="#0b150b" stroke="#1f7a1f"/>
+    <text x="32" y="43" fill="#8eff8e" font-family="DejaVu Sans Mono, monospace" font-size="18">STATUS // READY</text>
+    <text x="28" y="90" fill="#77ff77" font-family="DejaVu Sans Mono, monospace" font-size="16">DEVICE   : ESP32-S3</text>
+    <text x="28" y="120" fill="#77ff77" font-family="DejaVu Sans Mono, monospace" font-size="16">PROFILE  : M5Stick S3</text>
+    <text x="28" y="150" fill="#77ff77" font-family="DejaVu Sans Mono, monospace" font-size="16">FIRMWARE : ANALYZED</text>
+    <text x="28" y="180" fill="#77ff77" font-family="DejaVu Sans Mono, monospace" font-size="16">RELEASE  : v0.1.1</text>
+    <rect x="26" y="196" width="248" height="18" rx="9" fill="#0b150b" stroke="#1f7a1f"/>
+    <rect x="28" y="198" width="214" height="14" rx="7" fill="#23c323"/>
+  </g>
+</svg>
