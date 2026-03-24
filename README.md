@@ -8,11 +8,26 @@ Desktop-приложение для прошивки устройств `M5Stick
 
 Отдельная инструкция для Windows: `WINDOWS_INSTALL.md`
 
+Быстрая установка готовой Windows-версии: `WINDOWS_RELEASE_INSTALL.md`
+
 Сборка `.exe` под Windows: `BUILD_WINDOWS.md`
 
 История изменений: `CHANGELOG.md`
 
 Landing-page проекта: `docs/index.html`
+
+## Скачать готовую Windows-версию
+
+Если ты не хочешь ничего собирать сам, открой релиз `v0.1.2`:
+
+- `https://github.com/GradusXaker/m5-flasher/releases/tag/v0.1.2`
+
+Что скачивать:
+
+- `GradusFlasher-Setup-v0.1.2.exe` — обычная установка
+- `GradusFlasher-windows-v0.1.2.zip` — portable-версия
+
+Если файл не виден, почти всегда причина в том, что репозиторий приватный и ты не вошел в GitHub под аккаунтом с доступом.
 
 ## Возможности
 

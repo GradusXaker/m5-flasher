@@ -21,3 +21,10 @@
 - Linux: архив `GradusFlasher-linux-v0.1.2.tar.gz`
 - Windows: архив `GradusFlasher-windows-v0.1.2.zip`
 - Windows installer: `GradusFlasher-Setup-v0.1.2.exe`
+
+## Как установить на Windows
+
+- если нужна обычная установка, скачай `GradusFlasher-Setup-v0.1.2.exe`
+- если нужна portable-версия, скачай `GradusFlasher-windows-v0.1.2.zip`
+
+Важно: репозиторий приватный, поэтому для просмотра и скачивания Windows-файлов нужно быть залогиненным в GitHub под аккаунтом с доступом.
