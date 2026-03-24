@@ -13,7 +13,9 @@ from PySide6.QtCore import QObject, Signal
 PROGRESS_RE = re.compile(r"\(\s*(\d+)\s*%\)")
 CHIP_DETECT_RE = re.compile(r"Detecting chip type\.\.\. (.+)")
 CHIP_FEATURES_RE = re.compile(r"Chip is (.+)")
-MAC_RE = re.compile(r"MAC: ([0-9a-f:]+)", re.IGNORECASE)
+CHIP_TYPE_LINE_RE = re.compile(r"Chip type:\s+(.+)")
+FEATURES_LINE_RE = re.compile(r"Features:\s+(.+)")
+MAC_RE = re.compile(r"MAC:\s+([0-9a-f:]+)", re.IGNORECASE)
 ENTRY_RE = re.compile(r"Entry point: (0x[0-9a-fA-F]+)")
 
 
@@ -104,7 +106,7 @@ class FlashWorker(QObject):
                         self.config.port,
                         "--baud",
                         str(self.config.baud_rate),
-                        "erase_flash",
+                        "erase-flash",
                     ],
                     "Erasing flash",
                 )
@@ -117,12 +119,12 @@ class FlashWorker(QObject):
                     self.config.port,
                     "--baud",
                     str(self.config.baud_rate),
-                    "write_flash",
-                    "--flash_mode",
+                    "write-flash",
+                    "--flash-mode",
                     "dio",
-                    "--flash_freq",
+                    "--flash-freq",
                     "80m",
-                    "--flash_size",
+                    "--flash-size",
                     "keep",
                     self.config.flash_offset,
                     str(firmware),
@@ -176,7 +178,7 @@ class ProbeWorker(QObject):
                     self.port,
                     "--baud",
                     str(self.baud_rate),
-                    "chip_id",
+                    "chip-id",
                 ],
                 "Проверка подключения и типа чипа",
             )
@@ -189,7 +191,7 @@ class ProbeWorker(QObject):
                     self.port,
                     "--baud",
                     str(self.baud_rate),
-                    "flash_id",
+                    "flash-id",
                 ],
                 "Чтение информации о flash",
             )
@@ -224,6 +226,10 @@ class ProbeWorker(QObject):
             if match := CHIP_DETECT_RE.search(line):
                 chip_type = match.group(1).strip()
             elif match := CHIP_FEATURES_RE.search(line):
+                chip_info = match.group(1).strip()
+            elif match := CHIP_TYPE_LINE_RE.search(line):
+                chip_type = match.group(1).strip()
+            elif match := FEATURES_LINE_RE.search(line):
                 chip_info = match.group(1).strip()
             elif match := MAC_RE.search(line):
                 mac = match.group(1).strip()

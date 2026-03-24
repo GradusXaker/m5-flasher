@@ -18,14 +18,14 @@ Landing-page проекта: `docs/index.html`
 
 ## Скачать готовую Windows-версию
 
-Если ты не хочешь ничего собирать сам, открой релиз `v0.1.3`:
+Если ты не хочешь ничего собирать сам, открой релиз `v0.1.4`:
 
-- `https://github.com/GradusXaker/m5-flasher/releases/tag/v0.1.3`
+- `https://github.com/GradusXaker/m5-flasher/releases/tag/v0.1.4`
 
 Что скачивать:
 
-- `GradusFlasher-Setup-v0.1.3.exe` — обычная установка
-- `GradusFlasher-windows-v0.1.3.zip` — portable-версия
+- `GradusFlasher-Setup-v0.1.4.exe` — обычная установка
+- `GradusFlasher-windows-v0.1.4.zip` — portable-версия
 
 Если файл не виден, почти всегда причина в том, что репозиторий приватный и ты не вошел в GitHub под аккаунтом с доступом.
 
@@ -79,7 +79,7 @@ pyinstaller --noconfirm --windowed --name GradusFlasher src/m5_flasher/main.py
 
 - Linux: `dist/GradusFlasher/GradusFlasher`
 - Windows после локальной сборки: `dist\GradusFlasher\GradusFlasher.exe`
-- Windows installer: `dist\GradusFlasher-Setup-v0.1.3.exe`
+- Windows installer: `dist\GradusFlasher-Setup-v0.1.4.exe`
 
 ## Заметки
 

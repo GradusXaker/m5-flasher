@@ -15,14 +15,14 @@
 
 Открой релиз:
 
-- `https://github.com/GradusXaker/m5-flasher/releases/tag/v0.1.3`
+- `https://github.com/GradusXaker/m5-flasher/releases/tag/v0.1.4`
 
 Дальше смотри блок `Assets`.
 
 Там есть два Windows-файла:
 
-- `GradusFlasher-Setup-v0.1.3.exe` — обычная установка через инсталлятор
-- `GradusFlasher-windows-v0.1.3.zip` — portable-версия без установки
+- `GradusFlasher-Setup-v0.1.4.exe` — обычная установка через инсталлятор
+- `GradusFlasher-windows-v0.1.4.zip` — portable-версия без установки
 
 ## Что выбрать
 
@@ -30,7 +30,7 @@
 
 Скачай:
 
-- `GradusFlasher-Setup-v0.1.3.exe`
+- `GradusFlasher-Setup-v0.1.4.exe`
 
 Дальше:
 
@@ -43,7 +43,7 @@
 
 Скачай:
 
-- `GradusFlasher-windows-v0.1.3.zip`
+- `GradusFlasher-windows-v0.1.4.zip`
 
 Дальше:
 
@@ -61,7 +61,7 @@
 Проверь по пунктам:
 
 1. Ты точно вошел в GitHub под нужным аккаунтом
-2. Ты открыл вкладку `Assets` у релиза `v0.1.3`
+2. Ты открыл вкладку `Assets` у релиза `v0.1.4`
 3. Ты смотришь именно репозиторий `GradusXaker/m5-flasher`
 4. Репозиторий не открыт в анонимном режиме браузера
 
@@ -69,5 +69,5 @@
 
 Они работают только если у тебя есть доступ к приватному репозиторию:
 
-- `https://github.com/GradusXaker/m5-flasher/releases/download/v0.1.3/GradusFlasher-Setup-v0.1.3.exe`
-- `https://github.com/GradusXaker/m5-flasher/releases/download/v0.1.3/GradusFlasher-windows-v0.1.3.zip`
+- `https://github.com/GradusXaker/m5-flasher/releases/download/v0.1.4/GradusFlasher-Setup-v0.1.4.exe`
+- `https://github.com/GradusXaker/m5-flasher/releases/download/v0.1.4/GradusFlasher-windows-v0.1.4.zip`
