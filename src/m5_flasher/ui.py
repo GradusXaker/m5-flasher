@@ -6,6 +6,7 @@ from PySide6.QtCore import QSettings, QThread, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
+    QAbstractItemView,
     QDialog,
     QCheckBox,
     QComboBox,
@@ -37,6 +38,7 @@ SETTINGS_APP = "M5Flasher"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 INSTALL_GUIDE = PROJECT_ROOT / "INSTALL.md"
 WINDOWS_INSTALL_GUIDE = PROJECT_ROOT / "WINDOWS_INSTALL.md"
+MAX_HISTORY_ITEMS = 12
 
 
 class FlashWizardDialog(QDialog):
@@ -172,6 +174,7 @@ class M5FlasherWindow(QMainWindow):
         self.firmware_ready = False
         self.device_summary = "Устройство еще не проверено"
         self.firmware_summary = "Прошивка еще не проверена"
+        self.operation_history: list[str] = []
         self.settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
 
         self._build_ui()
@@ -221,6 +224,7 @@ class M5FlasherWindow(QMainWindow):
         right_column.setSpacing(14)
         right_column.addWidget(self._build_help_panel(), stretch=1)
         right_column.addWidget(self._build_release_panel(), stretch=1)
+        right_column.addWidget(self._build_history_panel(), stretch=1)
         top_row.addLayout(right_column, stretch=2)
         root.addLayout(top_row)
 
@@ -410,6 +414,20 @@ class M5FlasherWindow(QMainWindow):
         layout.addWidget(refresh_release_button)
         return group
 
+    def _build_history_panel(self) -> QWidget:
+        group = QGroupBox("История операций")
+        layout = QVBoxLayout(group)
+
+        self.history_list = QListWidget()
+        self.history_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+
+        clear_button = QPushButton("Очистить историю")
+        clear_button.clicked.connect(self.clear_history)
+
+        layout.addWidget(self.history_list)
+        layout.addWidget(clear_button)
+        return group
+
     def refresh_ports(self) -> None:
         selected_port = self.settings.value("selected_port", "", type=str) or self.port_combo.currentData()
         self.ports = get_serial_ports()
@@ -439,6 +457,7 @@ class M5FlasherWindow(QMainWindow):
             self.append_log(f"[info] selected firmware: {filename}")
             self.firmware_ready = False
             self.firmware_summary = "Прошивка выбрана, но еще не проанализирована"
+            self.record_operation(f"Выбран файл прошивки: {Path(filename).name}")
             self._refresh_readiness()
             self._save_settings()
 
@@ -637,10 +656,12 @@ class M5FlasherWindow(QMainWindow):
         if success:
             self.update_status("[ok] firmware flashed successfully")
             self.append_log(f"[ok] {message}")
+            self.record_operation("Прошивка устройства завершена успешно")
             QMessageBox.information(self, "Прошивка завершена", message)
         else:
             self.update_status("[error] flashing failed")
             self.append_log(f"[error] {message}")
+            self.record_operation("Ошибка во время прошивки устройства")
             QMessageBox.critical(self, "Ошибка прошивки", message)
 
     def _cleanup_thread(self) -> None:
@@ -660,6 +681,7 @@ class M5FlasherWindow(QMainWindow):
             self.file_input.setText(payload)
             self.update_status("[ok] прошивка Gradus загружена")
             self.append_log(f"[ok] downloaded firmware: {payload}")
+            self.record_operation(f"Загружена прошивка: {Path(payload).name}")
             self.firmware_ready = False
             self.firmware_summary = "Прошивка загружена, но еще не проанализирована"
             self._refresh_readiness()
@@ -678,6 +700,7 @@ class M5FlasherWindow(QMainWindow):
         if success:
             self.update_status("[ok] устройство обнаружено")
             self.append_log(f"[ok] {payload}")
+            self.record_operation("Устройство успешно определено")
             self.device_ready = True
             self.device_summary = payload
             self._apply_profile_recommendation(payload)
@@ -686,6 +709,7 @@ class M5FlasherWindow(QMainWindow):
         else:
             self.update_status("[error] устройство не ответило")
             self.append_log(f"[error] {payload}")
+            self.record_operation("Ошибка проверки подключения устройства")
             self.device_ready = False
             self.device_summary = payload
             self.recommendation_label.setText("Рекомендация профиля: не удалось проверить устройство")
@@ -700,6 +724,7 @@ class M5FlasherWindow(QMainWindow):
         if success:
             self.update_status("[ok] прошивка проанализирована")
             self.append_log(f"[ok] {payload}")
+            self.record_operation("Анализ прошивки выполнен успешно")
             self.firmware_ready = True
             self.firmware_summary = payload
             self._refresh_readiness()
@@ -707,6 +732,7 @@ class M5FlasherWindow(QMainWindow):
         else:
             self.update_status("[error] анализ прошивки не удался")
             self.append_log(f"[error] {payload}")
+            self.record_operation("Ошибка анализа прошивки")
             self.firmware_ready = False
             self.firmware_summary = payload
             self._refresh_readiness()
@@ -744,6 +770,7 @@ class M5FlasherWindow(QMainWindow):
             self.release_assets_list.clear()
             self.release_assets_list.addItems(payload.asset_names)
             self.append_log(f"[ok] release {payload.tag_name} loaded with {len(payload.asset_names)} asset(s)")
+            self.record_operation(f"Обновлена информация о релизе {payload.tag_name}")
         else:
             self.release_tag_label.setText("Релиз: ошибка загрузки")
             self.release_source_label.setText("Источник: недоступен")
@@ -808,6 +835,21 @@ class M5FlasherWindow(QMainWindow):
         opened = QDesktopServices.openUrl(QUrl.fromLocalFile(str(guide_path)))
         if not opened:
             QMessageBox.warning(self, error_title, f"Открой файл вручную:\n{guide_path}")
+
+    def record_operation(self, message: str) -> None:
+        entry = message.strip()
+        if not entry:
+            return
+        self.operation_history.insert(0, entry)
+        self.operation_history = self.operation_history[:MAX_HISTORY_ITEMS]
+        self.history_list.clear()
+        self.history_list.addItems(self.operation_history)
+        self.settings.setValue("operation_history", self.operation_history)
+
+    def clear_history(self) -> None:
+        self.operation_history = []
+        self.history_list.clear()
+        self.settings.setValue("operation_history", self.operation_history)
 
     def _schedule_onboarding(self) -> None:
         already_seen = self.settings.value("onboarding_seen", False, type=bool)
@@ -895,6 +937,7 @@ class M5FlasherWindow(QMainWindow):
         selected_port = self.settings.value("selected_port", "", type=str)
         selected_baud = self.settings.value("baud_rate", 460800, type=int)
         erase_before_flash = self.settings.value("erase_before_flash", False, type=bool)
+        operation_history = self.settings.value("operation_history", [], type=list)
 
         if firmware_path:
             self.file_input.setText(firmware_path)
@@ -916,6 +959,10 @@ class M5FlasherWindow(QMainWindow):
             port_index = self.port_combo.findData(selected_port)
             if port_index >= 0:
                 self.port_combo.setCurrentIndex(port_index)
+
+        self.operation_history = [str(item) for item in operation_history][:MAX_HISTORY_ITEMS]
+        self.history_list.clear()
+        self.history_list.addItems(self.operation_history)
 
     def _save_settings(self) -> None:
         self.settings.setValue("firmware_path", self.file_input.text().strip())

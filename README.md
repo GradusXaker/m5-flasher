@@ -8,6 +8,8 @@ Desktop-приложение для прошивки устройств `M5Stick
 
 Сборка `.exe` под Windows: `BUILD_WINDOWS.md`
 
+История изменений: `CHANGELOG.md`
+
 ## Возможности
 
 - Поиск доступных serial-портов
