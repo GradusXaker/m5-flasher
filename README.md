@@ -18,10 +18,20 @@ Desktop-приложение для прошивки устройств `M5Stick
 - Прошивка через `esptool`
 - Пошаговый мастер прошивки для первого запуска
 - Проверка подключения, автоопределение чипа и подсказка профиля до прошивки
-- Анализ `.bin` и встроенный центр релизов Gradus
+- Анализ `.bin`, встроенный центр релизов и проверка обновлений
 - Живой лог и прогресс выполнения
 - Хакерский черно-зеленый интерфейс
-- Сохранение последнего профиля, порта, baud, offset и пути к файлу
+- История операций и сохранение последних настроек
+
+## Скриншоты
+
+### Главное окно
+
+![Главное окно Gradus Flasher](docs/screenshots/main-window.png)
+
+### Мастер прошивки
+
+![Мастер прошивки Gradus](docs/screenshots/wizard-window.png)
 
 ## Запуск
 
@@ -39,6 +49,8 @@ source .venv/bin/activate
 pip install pyinstaller
 pyinstaller --noconfirm --windowed --name GradusFlasher src/m5_flasher/main.py
 ```
+
+Автоматическая Windows-сборка настроена через GitHub Actions: `.github/workflows/windows-release.yml`
 
 Готовый билд после сборки:
 

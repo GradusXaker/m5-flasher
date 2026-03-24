@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from m5_flasher import __version__
 from m5_flasher.gradus import GRADUS_PROFILES, GradusDownloadWorker, ReleaseInfo, ReleaseInfoWorker, recommend_profile
 from m5_flasher.flasher import FirmwareAnalyzeWorker, FlashConfig, FlashWorker, ProbeWorker
 from m5_flasher.serial_utils import PortInfo, get_serial_ports
@@ -396,6 +397,8 @@ class M5FlasherWindow(QMainWindow):
 
         self.release_tag_label = QLabel("Релиз: загрузка...")
         self.release_tag_label.setObjectName("panelTitleLabel")
+        self.release_update_label = QLabel(f"Локальная версия: {__version__} | проверка обновлений...")
+        self.release_update_label.setWordWrap(True)
         self.release_source_label = QLabel("Источник: upstream release feed")
         self.release_source_label.setWordWrap(True)
         self.release_date_label = QLabel("Дата: неизвестно")
@@ -408,6 +411,7 @@ class M5FlasherWindow(QMainWindow):
         refresh_release_button.clicked.connect(self.refresh_release_info)
 
         layout.addWidget(self.release_tag_label)
+        layout.addWidget(self.release_update_label)
         layout.addWidget(self.release_source_label)
         layout.addWidget(self.release_date_label)
         layout.addWidget(self.release_assets_list)
@@ -514,7 +518,7 @@ class M5FlasherWindow(QMainWindow):
             return
 
         self.release_thread = QThread()
-        self.release_worker = ReleaseInfoWorker()
+        self.release_worker = ReleaseInfoWorker(__version__)
         self.release_worker.moveToThread(self.release_thread)
 
         self.release_thread.started.connect(self.release_worker.run)
@@ -765,6 +769,14 @@ class M5FlasherWindow(QMainWindow):
     def _release_info_finished(self, success: bool, payload: object) -> None:
         if success and isinstance(payload, ReleaseInfo):
             self.release_tag_label.setText(f"Релиз: {payload.tag_name}")
+            if payload.update_available:
+                self.release_update_label.setText(
+                    f"Локальная версия: {__version__} | доступно обновление: {payload.release_version}"
+                )
+            else:
+                self.release_update_label.setText(
+                    f"Локальная версия: {__version__} | установлена актуальная версия"
+                )
             self.release_source_label.setText(f"Источник: {payload.source_url}")
             self.release_date_label.setText(f"Дата: {payload.published_at}")
             self.release_assets_list.clear()
@@ -773,6 +785,7 @@ class M5FlasherWindow(QMainWindow):
             self.record_operation(f"Обновлена информация о релизе {payload.tag_name}")
         else:
             self.release_tag_label.setText("Релиз: ошибка загрузки")
+            self.release_update_label.setText(f"Локальная версия: {__version__} | обновление не проверено")
             self.release_source_label.setText("Источник: недоступен")
             self.release_date_label.setText(str(payload))
             self.release_assets_list.clear()

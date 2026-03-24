@@ -8,3 +8,4 @@ build/
 dist/
 *.spec
 downloads/
+release-assets/

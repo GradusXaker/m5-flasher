@@ -33,6 +33,8 @@ class ReleaseInfo:
     published_at: str
     source_url: str
     asset_names: list[str]
+    update_available: bool
+    release_version: str
 
 
 GRADUS_PROFILES = [
@@ -108,15 +110,22 @@ class ReleaseInfoWorker(QObject):
     log = Signal(str)
     finished = Signal(bool, object)
 
+    def __init__(self, current_version: str):
+        super().__init__()
+        self.current_version = current_version
+
     def run(self) -> None:
         try:
             self.log.emit("[net] loading latest Gradus release information")
             payload = _fetch_latest_release_payload()
+            release_version = payload.get("tag_name", "unknown").lstrip("v")
             info = ReleaseInfo(
                 tag_name=payload.get("tag_name", "unknown"),
                 published_at=payload.get("published_at", "unknown"),
                 source_url=SOURCE_REPO_URL,
                 asset_names=[asset.get("name", "") for asset in payload.get("assets", []) if asset.get("name")],
+                update_available=_version_tuple(release_version) > _version_tuple(self.current_version),
+                release_version=release_version,
             )
             self.finished.emit(True, info)
         except Exception as exc:  # pragma: no cover - network path
@@ -130,3 +139,11 @@ def _fetch_latest_release_payload() -> dict:
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         return json.load(response)
+
+
+def _version_tuple(version: str) -> tuple[int, ...]:
+    parts: list[int] = []
+    for part in version.split("."):
+        digits = "".join(ch for ch in part if ch.isdigit())
+        parts.append(int(digits) if digits else 0)
+    return tuple(parts)
