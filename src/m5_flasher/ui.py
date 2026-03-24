@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from m5_flasher.gradus import GRADUS_PROFILES, GradusDownloadWorker
-from m5_flasher.flasher import FlashConfig, FlashWorker
+from m5_flasher.flasher import FlashConfig, FlashWorker, ProbeWorker
 from m5_flasher.serial_utils import PortInfo, get_serial_ports
 from m5_flasher.styles import APP_STYLESHEET
 
@@ -98,9 +98,12 @@ class FlashWizardDialog(QDialog):
         self.flash_now_button = QPushButton("Прошить сейчас")
         self.flash_now_button.setObjectName("flashButton")
         self.flash_now_button.clicked.connect(self.flash_now)
+        self.detect_button = QPushButton("Проверить устройство")
+        self.detect_button.clicked.connect(self.detect_device)
 
         button_row.addWidget(self.docs_button)
         button_row.addStretch(1)
+        button_row.addWidget(self.detect_button)
         button_row.addWidget(self.back_button)
         button_row.addWidget(self.next_button)
         button_row.addWidget(self.flash_now_button)
@@ -143,6 +146,9 @@ class FlashWizardDialog(QDialog):
         self.accept()
         self.window.start_flash()
 
+    def detect_device(self) -> None:
+        self.window.probe_device()
+
 
 class M5FlasherWindow(QMainWindow):
     def __init__(self) -> None:
@@ -152,6 +158,8 @@ class M5FlasherWindow(QMainWindow):
 
         self.thread: QThread | None = None
         self.worker: FlashWorker | None = None
+        self.probe_thread: QThread | None = None
+        self.probe_worker: ProbeWorker | None = None
         self.download_thread: QThread | None = None
         self.download_worker: GradusDownloadWorker | None = None
         self.ports: list[PortInfo] = []
@@ -249,6 +257,9 @@ class M5FlasherWindow(QMainWindow):
         self.download_button = QPushButton("Скачать последний Gradus")
         self.download_button.clicked.connect(self.download_gradus)
 
+        self.probe_button = QPushButton("Проверить устройство")
+        self.probe_button.clicked.connect(self.probe_device)
+
         self.file_input = QLineEdit()
         self.file_input.setPlaceholderText("Выбери файл прошивки .bin")
         self.file_input.editingFinished.connect(self._save_settings)
@@ -277,7 +288,8 @@ class M5FlasherWindow(QMainWindow):
         layout.addWidget(self.file_input, 4, 1)
         layout.addWidget(browse_button, 4, 2)
         layout.addWidget(self.erase_checkbox, 5, 1)
-        layout.addWidget(self.flash_button, 6, 1, alignment=Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(self.probe_button, 6, 1, alignment=Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(self.flash_button, 6, 2, alignment=Qt.AlignmentFlag.AlignLeft)
 
         return group
 
@@ -353,7 +365,7 @@ class M5FlasherWindow(QMainWindow):
             self._save_settings()
 
     def start_flash(self) -> None:
-        if self.thread is not None or self.download_thread is not None:
+        if self.thread is not None or self.download_thread is not None or self.probe_thread is not None:
             QMessageBox.warning(self, "Прошивка уже идет", "Операция прошивки уже запущена.")
             return
 
@@ -396,13 +408,15 @@ class M5FlasherWindow(QMainWindow):
 
         self.progress_bar.setValue(0)
         self.flash_button.setEnabled(False)
+        self.download_button.setEnabled(False)
+        self.probe_button.setEnabled(False)
         self.update_status("[flash] запуск последовательности прошивки")
         self.append_log(f"[flash] port={config.port} baud={config.baud_rate} offset={config.flash_offset}")
         self._save_settings()
         self.thread.start()
 
     def download_gradus(self) -> None:
-        if self.thread is not None or self.download_thread is not None:
+        if self.thread is not None or self.download_thread is not None or self.probe_thread is not None:
             QMessageBox.warning(self, "Занято", "Дождись завершения текущей операции.")
             return
 
@@ -427,9 +441,38 @@ class M5FlasherWindow(QMainWindow):
         self.update_status("[net] загрузка последней прошивки Gradus")
         self.download_thread.start()
 
+    def probe_device(self) -> None:
+        if self.thread is not None or self.download_thread is not None or self.probe_thread is not None:
+            QMessageBox.warning(self, "Занято", "Дождись завершения текущей операции.")
+            return
+
+        port = self.port_combo.currentData()
+        if not port:
+            QMessageBox.warning(self, "Не выбран порт", "Сначала выбери serial-порт.")
+            return
+
+        self.probe_thread = QThread()
+        self.probe_worker = ProbeWorker(port=port, baud_rate=int(self.baud_combo.currentData()))
+        self.probe_worker.moveToThread(self.probe_thread)
+
+        self.probe_thread.started.connect(self.probe_worker.run)
+        self.probe_worker.log.connect(self.append_log)
+        self.probe_worker.state.connect(self.update_status)
+        self.probe_worker.finished.connect(self._probe_finished)
+        self.probe_worker.finished.connect(self.probe_thread.quit)
+        self.probe_thread.finished.connect(self._cleanup_probe_thread)
+
+        self.flash_button.setEnabled(False)
+        self.download_button.setEnabled(False)
+        self.probe_button.setEnabled(False)
+        self.update_status("[probe] проверка подключения устройства")
+        self.append_log(f"[probe] port={port} baud={int(self.baud_combo.currentData())}")
+        self.probe_thread.start()
+
     def flash_finished(self, success: bool, message: str) -> None:
         self.flash_button.setEnabled(True)
         self.download_button.setEnabled(True)
+        self.probe_button.setEnabled(True)
         if success:
             self.update_status("[ok] firmware flashed successfully")
             self.append_log(f"[ok] {message}")
@@ -450,6 +493,7 @@ class M5FlasherWindow(QMainWindow):
     def _download_finished(self, success: bool, payload: str) -> None:
         self.flash_button.setEnabled(True)
         self.download_button.setEnabled(True)
+        self.probe_button.setEnabled(True)
         if success:
             self.file_input.setText(payload)
             self.update_status("[ok] прошивка Gradus загружена")
@@ -461,6 +505,19 @@ class M5FlasherWindow(QMainWindow):
             self.append_log(f"[error] {payload}")
             QMessageBox.critical(self, "Ошибка загрузки", payload)
 
+    def _probe_finished(self, success: bool, payload: str) -> None:
+        self.flash_button.setEnabled(True)
+        self.download_button.setEnabled(True)
+        self.probe_button.setEnabled(True)
+        if success:
+            self.update_status("[ok] устройство обнаружено")
+            self.append_log(f"[ok] {payload}")
+            QMessageBox.information(self, "Устройство найдено", payload)
+        else:
+            self.update_status("[error] устройство не ответило")
+            self.append_log(f"[error] {payload}")
+            QMessageBox.critical(self, "Ошибка проверки", payload)
+
     def _cleanup_download_thread(self) -> None:
         if self.download_worker is not None:
             self.download_worker.deleteLater()
@@ -468,6 +525,14 @@ class M5FlasherWindow(QMainWindow):
             self.download_thread.deleteLater()
         self.download_worker = None
         self.download_thread = None
+
+    def _cleanup_probe_thread(self) -> None:
+        if self.probe_worker is not None:
+            self.probe_worker.deleteLater()
+        if self.probe_thread is not None:
+            self.probe_thread.deleteLater()
+        self.probe_worker = None
+        self.probe_thread = None
 
     def append_log(self, line: str) -> None:
         self.log_output.append(line)
