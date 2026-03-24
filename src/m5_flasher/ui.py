@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from m5_flasher.bruce import BRUCE_PROFILES, BruceDownloadWorker
+from m5_flasher.gradus import GRADUS_PROFILES, GradusDownloadWorker
 from m5_flasher.flasher import FlashConfig, FlashWorker
 from m5_flasher.serial_utils import PortInfo, get_serial_ports
 from m5_flasher.styles import APP_STYLESHEET
@@ -30,16 +30,18 @@ from m5_flasher.styles import APP_STYLESHEET
 
 SETTINGS_ORG = "OpenCode"
 SETTINGS_APP = "M5Flasher"
+
+
 class M5FlasherWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("M5 Flasher // serial console")
+        self.setWindowTitle("Gradus Flasher // serial console")
         self.resize(1040, 760)
 
         self.thread: QThread | None = None
         self.worker: FlashWorker | None = None
         self.download_thread: QThread | None = None
-        self.download_worker: BruceDownloadWorker | None = None
+        self.download_worker: GradusDownloadWorker | None = None
         self.ports: list[PortInfo] = []
         self.settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
 
@@ -53,9 +55,9 @@ class M5FlasherWindow(QMainWindow):
         root.setContentsMargins(18, 18, 18, 18)
         root.setSpacing(14)
 
-        title = QLabel("M5 FLASHER")
+        title = QLabel("GRADUS FLASHER")
         title.setObjectName("titleLabel")
-        subtitle = QLabel("serial upload tool for M5Stick / ESP32 // black terminal edition")
+        subtitle = QLabel("прошивальщик для M5Stick / ESP32 // black terminal edition")
         subtitle.setObjectName("subtitleLabel")
 
         root.addWidget(title)
@@ -67,10 +69,10 @@ class M5FlasherWindow(QMainWindow):
         top_row.addWidget(self._build_help_panel(), stretch=2)
         root.addLayout(top_row)
 
-        log_group = QGroupBox("Live Output")
+        log_group = QGroupBox("Живой лог")
         log_layout = QVBoxLayout(log_group)
 
-        self.status_label = QLabel("[idle] waiting for firmware and serial port")
+        self.status_label = QLabel("[idle] ожидание прошивки и serial-порта")
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
@@ -78,7 +80,7 @@ class M5FlasherWindow(QMainWindow):
 
         self.log_output = QTextEdit()
         self.log_output.setReadOnly(True)
-        self.log_output.setPlaceholderText("[log stream will appear here]")
+        self.log_output.setPlaceholderText("[здесь появится поток логов]")
 
         log_layout.addWidget(self.status_label)
         log_layout.addWidget(self.progress_bar)
@@ -88,7 +90,7 @@ class M5FlasherWindow(QMainWindow):
         self.setCentralWidget(container)
 
     def _build_flash_panel(self) -> QWidget:
-        group = QGroupBox("Flash Control")
+        group = QGroupBox("Управление прошивкой")
         layout = QGridLayout(group)
         layout.setHorizontalSpacing(10)
         layout.setVerticalSpacing(10)
@@ -96,7 +98,7 @@ class M5FlasherWindow(QMainWindow):
         self.port_combo = QComboBox()
         self.port_combo.setMinimumWidth(320)
         self.port_combo.currentIndexChanged.connect(self._save_settings)
-        refresh_button = QPushButton("Refresh Ports")
+        refresh_button = QPushButton("Обновить порты")
         refresh_button.clicked.connect(self.refresh_ports)
 
         self.baud_combo = QComboBox()
@@ -109,39 +111,39 @@ class M5FlasherWindow(QMainWindow):
         self.offset_input.editingFinished.connect(self._save_settings)
 
         self.profile_combo = QComboBox()
-        self.profile_combo.addItem("Custom firmware file", "")
-        for profile in BRUCE_PROFILES:
+        self.profile_combo.addItem("Свой файл прошивки", "")
+        for profile in GRADUS_PROFILES:
             self.profile_combo.addItem(profile.label, profile.asset_name)
         self.profile_combo.currentIndexChanged.connect(self._profile_changed)
 
-        self.download_button = QPushButton("Download Latest Bruce")
-        self.download_button.clicked.connect(self.download_bruce)
+        self.download_button = QPushButton("Скачать последний Gradus")
+        self.download_button.clicked.connect(self.download_gradus)
 
         self.file_input = QLineEdit()
-        self.file_input.setPlaceholderText("Select firmware .bin file")
+        self.file_input.setPlaceholderText("Выбери файл прошивки .bin")
         self.file_input.editingFinished.connect(self._save_settings)
-        browse_button = QPushButton("Browse Firmware")
+        browse_button = QPushButton("Открыть файл")
         browse_button.clicked.connect(self.select_firmware)
 
-        self.erase_checkbox = QCheckBox("Erase flash before writing")
+        self.erase_checkbox = QCheckBox("Стереть flash перед записью")
         self.erase_checkbox.setChecked(False)
         self.erase_checkbox.stateChanged.connect(self._save_settings)
 
-        self.flash_button = QPushButton("FLASH DEVICE")
+        self.flash_button = QPushButton("ПРОШИТЬ УСТРОЙСТВО")
         self.flash_button.setObjectName("flashButton")
         self.flash_button.clicked.connect(self.start_flash)
 
-        layout.addWidget(QLabel("Serial Port"), 0, 0)
+        layout.addWidget(QLabel("Serial-порт"), 0, 0)
         layout.addWidget(self.port_combo, 0, 1)
         layout.addWidget(refresh_button, 0, 2)
-        layout.addWidget(QLabel("Baud Rate"), 1, 0)
+        layout.addWidget(QLabel("Скорость baud"), 1, 0)
         layout.addWidget(self.baud_combo, 1, 1)
-        layout.addWidget(QLabel("Flash Offset"), 2, 0)
+        layout.addWidget(QLabel("Смещение flash"), 2, 0)
         layout.addWidget(self.offset_input, 2, 1)
-        layout.addWidget(QLabel("Bruce Profile"), 3, 0)
+        layout.addWidget(QLabel("Профиль Gradus"), 3, 0)
         layout.addWidget(self.profile_combo, 3, 1)
         layout.addWidget(self.download_button, 3, 2)
-        layout.addWidget(QLabel("Firmware File"), 4, 0)
+        layout.addWidget(QLabel("Файл прошивки"), 4, 0)
         layout.addWidget(self.file_input, 4, 1)
         layout.addWidget(browse_button, 4, 2)
         layout.addWidget(self.erase_checkbox, 5, 1)
@@ -150,7 +152,7 @@ class M5FlasherWindow(QMainWindow):
         return group
 
     def _build_help_panel(self) -> QWidget:
-        group = QGroupBox("M5Stick Boot Notes")
+        group = QGroupBox("Подсказка по M5Stick")
         layout = QVBoxLayout(group)
 
         art = QLabel(
@@ -169,8 +171,8 @@ class M5FlasherWindow(QMainWindow):
         art.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
 
         notes = QLabel(
-            "If the port does not appear, reconnect the cable or install the USB driver. "
-            "For Bruce and many single-image builds, the default offset is 0x0."
+            "Если порт не появился, переподключи кабель или установи USB-драйвер. "
+            "Для Gradus и большинства single-image сборок стандартный offset: 0x0."
         )
         notes.setWordWrap(True)
 
@@ -184,7 +186,7 @@ class M5FlasherWindow(QMainWindow):
         self.ports = get_serial_ports()
         self.port_combo.clear()
         if not self.ports:
-            self.port_combo.addItem("No serial ports found", "")
+            self.port_combo.addItem("Serial-порты не найдены", "")
             self.append_log("[warn] no serial ports detected")
             return
 
@@ -199,7 +201,7 @@ class M5FlasherWindow(QMainWindow):
     def select_firmware(self) -> None:
         filename, _ = QFileDialog.getOpenFileName(
             self,
-            "Select firmware binary",
+            "Выбор файла прошивки",
             str(Path.home()),
             "Firmware (*.bin)",
         )
@@ -210,7 +212,7 @@ class M5FlasherWindow(QMainWindow):
 
     def start_flash(self) -> None:
         if self.thread is not None or self.download_thread is not None:
-            QMessageBox.warning(self, "Flash in progress", "Flashing is already running.")
+            QMessageBox.warning(self, "Прошивка уже идет", "Операция прошивки уже запущена.")
             return
 
         port = self.port_combo.currentData()
@@ -218,16 +220,16 @@ class M5FlasherWindow(QMainWindow):
         offset = self.offset_input.text().strip() or "0x0"
 
         if not port:
-            QMessageBox.warning(self, "Missing serial port", "Select a serial port first.")
+            QMessageBox.warning(self, "Не выбран порт", "Сначала выбери serial-порт.")
             return
 
         if not firmware_path:
-            QMessageBox.warning(self, "Missing firmware", "Select a firmware .bin file.")
+            QMessageBox.warning(self, "Не выбрана прошивка", "Выбери файл прошивки .bin.")
             return
 
         firmware = Path(firmware_path)
         if not firmware.exists():
-            QMessageBox.warning(self, "Firmware not found", f"File does not exist:\n{firmware}")
+            QMessageBox.warning(self, "Файл не найден", f"Файл не существует:\n{firmware}")
             return
 
         config = FlashConfig(
@@ -252,24 +254,24 @@ class M5FlasherWindow(QMainWindow):
 
         self.progress_bar.setValue(0)
         self.flash_button.setEnabled(False)
-        self.update_status("[flash] starting upload sequence")
+        self.update_status("[flash] запуск последовательности прошивки")
         self.append_log(f"[flash] port={config.port} baud={config.baud_rate} offset={config.flash_offset}")
         self._save_settings()
         self.thread.start()
 
-    def download_bruce(self) -> None:
+    def download_gradus(self) -> None:
         if self.thread is not None or self.download_thread is not None:
-            QMessageBox.warning(self, "Busy", "Wait for the current operation to finish.")
+            QMessageBox.warning(self, "Занято", "Дождись завершения текущей операции.")
             return
 
         asset_name = self.profile_combo.currentData()
         if not asset_name:
-            QMessageBox.information(self, "Select profile", "Choose a Bruce device profile first.")
+            QMessageBox.information(self, "Выбери профиль", "Сначала выбери профиль Gradus для устройства.")
             return
 
         output_dir = Path.home() / "Downloads" / "m5-flasher"
         self.download_thread = QThread()
-        self.download_worker = BruceDownloadWorker(asset_name, output_dir)
+        self.download_worker = GradusDownloadWorker(asset_name, output_dir)
         self.download_worker.moveToThread(self.download_thread)
 
         self.download_thread.started.connect(self.download_worker.run)
@@ -280,7 +282,7 @@ class M5FlasherWindow(QMainWindow):
 
         self.flash_button.setEnabled(False)
         self.download_button.setEnabled(False)
-        self.update_status("[net] downloading latest Bruce firmware")
+        self.update_status("[net] загрузка последней прошивки Gradus")
         self.download_thread.start()
 
     def flash_finished(self, success: bool, message: str) -> None:
@@ -289,11 +291,11 @@ class M5FlasherWindow(QMainWindow):
         if success:
             self.update_status("[ok] firmware flashed successfully")
             self.append_log(f"[ok] {message}")
-            QMessageBox.information(self, "Flash complete", message)
+            QMessageBox.information(self, "Прошивка завершена", message)
         else:
             self.update_status("[error] flashing failed")
             self.append_log(f"[error] {message}")
-            QMessageBox.critical(self, "Flash failed", message)
+            QMessageBox.critical(self, "Ошибка прошивки", message)
 
     def _cleanup_thread(self) -> None:
         if self.worker is not None:
@@ -308,14 +310,14 @@ class M5FlasherWindow(QMainWindow):
         self.download_button.setEnabled(True)
         if success:
             self.file_input.setText(payload)
-            self.update_status("[ok] Bruce firmware downloaded")
+            self.update_status("[ok] прошивка Gradus загружена")
             self.append_log(f"[ok] downloaded firmware: {payload}")
             self._save_settings()
-            QMessageBox.information(self, "Download complete", f"Bruce firmware saved to:\n{payload}")
+            QMessageBox.information(self, "Загрузка завершена", f"Прошивка Gradus сохранена в:\n{payload}")
         else:
-            self.update_status("[error] Bruce download failed")
+            self.update_status("[error] ошибка загрузки Gradus")
             self.append_log(f"[error] {payload}")
-            QMessageBox.critical(self, "Download failed", payload)
+            QMessageBox.critical(self, "Ошибка загрузки", payload)
 
     def _cleanup_download_thread(self) -> None:
         if self.download_worker is not None:
@@ -334,7 +336,7 @@ class M5FlasherWindow(QMainWindow):
     def _profile_changed(self) -> None:
         asset_name = self.profile_combo.currentData()
         if asset_name:
-            self.append_log(f"[info] selected Bruce profile: {asset_name}")
+            self.append_log(f"[info] выбран профиль Gradus: {asset_name}")
         self._save_settings()
 
     def _load_settings(self) -> None:

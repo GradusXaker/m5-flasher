@@ -1,18 +1,18 @@
-# M5 Flasher
+# Gradus Flasher
 
-Desktop app for flashing `M5Stick` devices over a serial port.
+Desktop-приложение для прошивки устройств `M5Stick` через serial-порт.
 
-## Features
+## Возможности
 
-- Detect available serial ports
-- Choose a firmware `.bin` file
-- Download latest Bruce firmware for supported M5Stick profiles
-- Flash with `esptool`
-- Show live logs and progress
-- Hacker-style black and green UI
-- Save last used profile, port, baud, offset, and firmware path
+- Поиск доступных serial-портов
+- Выбор файла прошивки `.bin`
+- Загрузка последней прошивки `Gradus` для поддерживаемых профилей `M5Stick`
+- Прошивка через `esptool`
+- Живой лог и прогресс выполнения
+- Хакерский черно-зеленый интерфейс
+- Сохранение последнего профиля, порта, baud, offset и пути к файлу
 
-## Run
+## Запуск
 
 ```bash
 python3 -m venv .venv
@@ -21,21 +21,22 @@ pip install -e .
 python -m m5_flasher.main
 ```
 
-## Build
+## Сборка
 
 ```bash
 source .venv/bin/activate
 pip install pyinstaller
-pyinstaller --noconfirm --windowed --name M5Flasher src/m5_flasher/main.py
+pyinstaller --noconfirm --windowed --name GradusFlasher src/m5_flasher/main.py
 ```
 
-Built app output:
+Готовый билд после сборки:
 
-- Linux: `dist/M5Flasher/M5Flasher`
+- Linux: `dist/GradusFlasher/GradusFlasher`
 
-## Notes
+## Заметки
 
-- Default flash offset is `0x0`
-- The app is optimized for `M5Stick` and similar ESP32-based devices
-- Some boards may need manual boot/download mode before flashing
-- Latest Bruce profile options currently include `M5Stick S3`, `M5StickC Plus2`, and `M5StickC Plus 1.1`
+- Стандартный flash offset: `0x0`
+- Приложение оптимизировано под `M5Stick` и похожие устройства на `ESP32`
+- Некоторым платам может понадобиться ручной вход в boot/download mode перед прошивкой
+- Сейчас доступны профили `Gradus` для `M5Stick S3`, `M5StickC Plus2` и `M5StickC Plus 1.1`
+- Под капотом загрузка использует совместимые upstream-бинарники, поэтому реальные имена исходных release-артефактов могут начинаться с `Bruce-`
