@@ -13,6 +13,7 @@ PROGRESS_RE = re.compile(r"\(\s*(\d+)\s*%\)")
 CHIP_DETECT_RE = re.compile(r"Detecting chip type\.\.\. (.+)")
 CHIP_FEATURES_RE = re.compile(r"Chip is (.+)")
 MAC_RE = re.compile(r"MAC: ([0-9a-f:]+)", re.IGNORECASE)
+ENTRY_RE = re.compile(r"Entry point: (0x[0-9a-fA-F]+)")
 
 
 @dataclass(slots=True)
@@ -225,4 +226,79 @@ class ProbeWorker(QObject):
             f"Информация о чипе: {chip_info}\n"
             f"MAC: {mac}\n"
             f"Размер flash: {flash_size}"
+        )
+
+
+class FirmwareAnalyzeWorker(QObject):
+    log = Signal(str)
+    state = Signal(str)
+    finished = Signal(bool, str)
+
+    def __init__(self, firmware_path: Path):
+        super().__init__()
+        self.firmware_path = firmware_path
+
+    def run(self) -> None:
+        if not self.firmware_path.exists():
+            self.finished.emit(False, f"Файл не найден: {self.firmware_path}")
+            return
+
+        try:
+            self.state.emit("Анализ прошивки")
+            command = [sys.executable, "-m", "esptool", "image-info", str(self.firmware_path)]
+            self.log.emit(f"$ {' '.join(command)}")
+
+            process = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+
+            lines: list[str] = []
+            assert process.stdout is not None
+            for raw_line in process.stdout:
+                line = raw_line.rstrip()
+                if line:
+                    lines.append(line)
+                    self.log.emit(line)
+
+            process.wait()
+            if process.returncode != 0:
+                raise subprocess.CalledProcessError(process.returncode, command)
+
+            self.finished.emit(True, self._build_summary(lines))
+        except subprocess.CalledProcessError:
+            self.finished.emit(False, "Не удалось прочитать image-info для выбранной прошивки")
+        except Exception as exc:  # pragma: no cover
+            self.finished.emit(False, str(exc))
+
+    def _build_summary(self, lines: list[str]) -> str:
+        chip_type = "Не определен"
+        flash_mode = "Не определен"
+        flash_freq = "Не определена"
+        flash_size = "Не определен"
+        entry = "Не определен"
+
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("Chip ID:"):
+                chip_type = stripped.split(":", 1)[1].strip()
+            elif stripped.startswith("Flash size:"):
+                flash_size = stripped.split(":", 1)[1].strip()
+            elif stripped.startswith("Flash freq:"):
+                flash_freq = stripped.split(":", 1)[1].strip()
+            elif stripped.startswith("Flash mode:"):
+                flash_mode = stripped.split(":", 1)[1].strip()
+            elif match := ENTRY_RE.search(stripped):
+                entry = match.group(1)
+
+        return (
+            f"Файл: {self.firmware_path.name}\n"
+            f"Chip ID: {chip_type}\n"
+            f"Flash mode: {flash_mode}\n"
+            f"Flash freq: {flash_freq}\n"
+            f"Flash size: {flash_size}\n"
+            f"Entry point: {entry}"
         )

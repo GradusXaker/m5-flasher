@@ -6,6 +6,8 @@ Desktop-приложение для прошивки устройств `M5Stick
 
 Отдельная инструкция для Windows: `WINDOWS_INSTALL.md`
 
+Сборка `.exe` под Windows: `BUILD_WINDOWS.md`
+
 ## Возможности
 
 - Поиск доступных serial-портов
@@ -38,6 +40,7 @@ pyinstaller --noconfirm --windowed --name GradusFlasher src/m5_flasher/main.py
 Готовый билд после сборки:
 
 - Linux: `dist/GradusFlasher/GradusFlasher`
+- Windows после локальной сборки: `dist\GradusFlasher\GradusFlasher.exe`
 
 ## Заметки
 

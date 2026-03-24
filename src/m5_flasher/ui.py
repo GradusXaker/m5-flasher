@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from m5_flasher.gradus import GRADUS_PROFILES, GradusDownloadWorker, recommend_profile
-from m5_flasher.flasher import FlashConfig, FlashWorker, ProbeWorker
+from m5_flasher.flasher import FirmwareAnalyzeWorker, FlashConfig, FlashWorker, ProbeWorker
 from m5_flasher.serial_utils import PortInfo, get_serial_ports
 from m5_flasher.styles import APP_STYLESHEET
 
@@ -160,14 +160,21 @@ class M5FlasherWindow(QMainWindow):
         self.worker: FlashWorker | None = None
         self.probe_thread: QThread | None = None
         self.probe_worker: ProbeWorker | None = None
+        self.analyze_thread: QThread | None = None
+        self.analyze_worker: FirmwareAnalyzeWorker | None = None
         self.download_thread: QThread | None = None
         self.download_worker: GradusDownloadWorker | None = None
         self.ports: list[PortInfo] = []
+        self.device_ready = False
+        self.firmware_ready = False
+        self.device_summary = "Устройство еще не проверено"
+        self.firmware_summary = "Прошивка еще не проверена"
         self.settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
 
         self._build_ui()
         self.refresh_ports()
         self._load_settings()
+        self._refresh_readiness()
         self._schedule_onboarding()
 
     def _build_ui(self) -> None:
@@ -207,6 +214,8 @@ class M5FlasherWindow(QMainWindow):
         top_row.addWidget(self._build_help_panel(), stretch=2)
         root.addLayout(top_row)
 
+        root.addWidget(self._build_status_panel())
+
         log_group = QGroupBox("Живой лог")
         log_layout = QVBoxLayout(log_group)
 
@@ -236,6 +245,7 @@ class M5FlasherWindow(QMainWindow):
         self.port_combo = QComboBox()
         self.port_combo.setMinimumWidth(320)
         self.port_combo.currentIndexChanged.connect(self._save_settings)
+        self.port_combo.currentIndexChanged.connect(self._port_changed)
         refresh_button = QPushButton("Обновить порты")
         refresh_button.clicked.connect(self.refresh_ports)
 
@@ -260,12 +270,16 @@ class M5FlasherWindow(QMainWindow):
         self.probe_button = QPushButton("Проверить устройство")
         self.probe_button.clicked.connect(self.probe_device)
 
+        self.analyze_button = QPushButton("Анализ .bin")
+        self.analyze_button.clicked.connect(self.analyze_firmware)
+
         self.recommendation_label = QLabel("Рекомендация профиля: еще не определена")
         self.recommendation_label.setWordWrap(True)
 
         self.file_input = QLineEdit()
         self.file_input.setPlaceholderText("Выбери файл прошивки .bin")
         self.file_input.editingFinished.connect(self._save_settings)
+        self.file_input.editingFinished.connect(self._firmware_changed)
         browse_button = QPushButton("Открыть файл")
         browse_button.clicked.connect(self.select_firmware)
 
@@ -293,8 +307,31 @@ class M5FlasherWindow(QMainWindow):
         layout.addWidget(self.recommendation_label, 5, 0, 1, 3)
         layout.addWidget(self.erase_checkbox, 6, 1)
         layout.addWidget(self.probe_button, 7, 1, alignment=Qt.AlignmentFlag.AlignLeft)
-        layout.addWidget(self.flash_button, 7, 2, alignment=Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(self.analyze_button, 7, 2, alignment=Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(self.flash_button, 8, 2, alignment=Qt.AlignmentFlag.AlignLeft)
 
+        return group
+
+    def _build_status_panel(self) -> QWidget:
+        group = QGroupBox("Готовность к прошивке")
+        layout = QGridLayout(group)
+        layout.setHorizontalSpacing(14)
+        layout.setVerticalSpacing(8)
+
+        self.ready_badge = QLabel("НЕ ГОТОВО")
+        self.ready_badge.setObjectName("titleLabel")
+
+        self.device_state_label = QLabel("Устройство: не проверено")
+        self.device_state_label.setWordWrap(True)
+        self.firmware_state_label = QLabel("Прошивка: не проверена")
+        self.firmware_state_label.setWordWrap(True)
+        self.summary_state_label = QLabel("Статус: выбери порт, проверь устройство и проанализируй .bin")
+        self.summary_state_label.setWordWrap(True)
+
+        layout.addWidget(self.ready_badge, 0, 0)
+        layout.addWidget(self.summary_state_label, 0, 1)
+        layout.addWidget(self.device_state_label, 1, 0, 1, 2)
+        layout.addWidget(self.firmware_state_label, 2, 0, 1, 2)
         return group
 
     def _build_help_panel(self) -> QWidget:
@@ -366,10 +403,66 @@ class M5FlasherWindow(QMainWindow):
         if filename:
             self.file_input.setText(filename)
             self.append_log(f"[info] selected firmware: {filename}")
+            self.firmware_ready = False
+            self.firmware_summary = "Прошивка выбрана, но еще не проанализирована"
+            self._refresh_readiness()
             self._save_settings()
 
+    def analyze_firmware(self) -> None:
+        if (
+            self.thread is not None
+            or self.download_thread is not None
+            or self.probe_thread is not None
+            or self.analyze_thread is not None
+        ):
+            QMessageBox.warning(self, "Занято", "Дождись завершения текущей операции.")
+            return
+
+        firmware_path = self.file_input.text().strip()
+        if not firmware_path:
+            QMessageBox.warning(self, "Не выбрана прошивка", "Сначала выбери файл прошивки .bin.")
+            return
+
+        firmware = Path(firmware_path)
+        if not firmware.exists():
+            QMessageBox.warning(self, "Файл не найден", f"Файл не существует:\n{firmware}")
+            return
+
+        if not self.device_ready or not self.firmware_ready:
+            answer = QMessageBox.question(
+                self,
+                "Подтвердить прошивку",
+                "Устройство или прошивка еще не проверены полностью. Все равно продолжить?",
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+
+        self.analyze_thread = QThread()
+        self.analyze_worker = FirmwareAnalyzeWorker(firmware)
+        self.analyze_worker.moveToThread(self.analyze_thread)
+
+        self.analyze_thread.started.connect(self.analyze_worker.run)
+        self.analyze_worker.log.connect(self.append_log)
+        self.analyze_worker.state.connect(self.update_status)
+        self.analyze_worker.finished.connect(self._analyze_finished)
+        self.analyze_worker.finished.connect(self.analyze_thread.quit)
+        self.analyze_thread.finished.connect(self._cleanup_analyze_thread)
+
+        self.flash_button.setEnabled(False)
+        self.download_button.setEnabled(False)
+        self.probe_button.setEnabled(False)
+        self.analyze_button.setEnabled(False)
+        self.update_status("[analyze] анализ выбранной прошивки")
+        self.append_log(f"[analyze] firmware={firmware}")
+        self.analyze_thread.start()
+
     def start_flash(self) -> None:
-        if self.thread is not None or self.download_thread is not None or self.probe_thread is not None:
+        if (
+            self.thread is not None
+            or self.download_thread is not None
+            or self.probe_thread is not None
+            or self.analyze_thread is not None
+        ):
             QMessageBox.warning(self, "Прошивка уже идет", "Операция прошивки уже запущена.")
             return
 
@@ -414,13 +507,19 @@ class M5FlasherWindow(QMainWindow):
         self.flash_button.setEnabled(False)
         self.download_button.setEnabled(False)
         self.probe_button.setEnabled(False)
+        self.analyze_button.setEnabled(False)
         self.update_status("[flash] запуск последовательности прошивки")
         self.append_log(f"[flash] port={config.port} baud={config.baud_rate} offset={config.flash_offset}")
         self._save_settings()
         self.thread.start()
 
     def download_gradus(self) -> None:
-        if self.thread is not None or self.download_thread is not None or self.probe_thread is not None:
+        if (
+            self.thread is not None
+            or self.download_thread is not None
+            or self.probe_thread is not None
+            or self.analyze_thread is not None
+        ):
             QMessageBox.warning(self, "Занято", "Дождись завершения текущей операции.")
             return
 
@@ -442,11 +541,18 @@ class M5FlasherWindow(QMainWindow):
 
         self.flash_button.setEnabled(False)
         self.download_button.setEnabled(False)
+        self.probe_button.setEnabled(False)
+        self.analyze_button.setEnabled(False)
         self.update_status("[net] загрузка последней прошивки Gradus")
         self.download_thread.start()
 
     def probe_device(self) -> None:
-        if self.thread is not None or self.download_thread is not None or self.probe_thread is not None:
+        if (
+            self.thread is not None
+            or self.download_thread is not None
+            or self.probe_thread is not None
+            or self.analyze_thread is not None
+        ):
             QMessageBox.warning(self, "Занято", "Дождись завершения текущей операции.")
             return
 
@@ -469,6 +575,7 @@ class M5FlasherWindow(QMainWindow):
         self.flash_button.setEnabled(False)
         self.download_button.setEnabled(False)
         self.probe_button.setEnabled(False)
+        self.analyze_button.setEnabled(False)
         self.update_status("[probe] проверка подключения устройства")
         self.append_log(f"[probe] port={port} baud={int(self.baud_combo.currentData())}")
         self.probe_thread.start()
@@ -477,6 +584,7 @@ class M5FlasherWindow(QMainWindow):
         self.flash_button.setEnabled(True)
         self.download_button.setEnabled(True)
         self.probe_button.setEnabled(True)
+        self.analyze_button.setEnabled(True)
         if success:
             self.update_status("[ok] firmware flashed successfully")
             self.append_log(f"[ok] {message}")
@@ -498,10 +606,14 @@ class M5FlasherWindow(QMainWindow):
         self.flash_button.setEnabled(True)
         self.download_button.setEnabled(True)
         self.probe_button.setEnabled(True)
+        self.analyze_button.setEnabled(True)
         if success:
             self.file_input.setText(payload)
             self.update_status("[ok] прошивка Gradus загружена")
             self.append_log(f"[ok] downloaded firmware: {payload}")
+            self.firmware_ready = False
+            self.firmware_summary = "Прошивка загружена, но еще не проанализирована"
+            self._refresh_readiness()
             self._save_settings()
             QMessageBox.information(self, "Загрузка завершена", f"Прошивка Gradus сохранена в:\n{payload}")
         else:
@@ -513,16 +625,43 @@ class M5FlasherWindow(QMainWindow):
         self.flash_button.setEnabled(True)
         self.download_button.setEnabled(True)
         self.probe_button.setEnabled(True)
+        self.analyze_button.setEnabled(True)
         if success:
             self.update_status("[ok] устройство обнаружено")
             self.append_log(f"[ok] {payload}")
+            self.device_ready = True
+            self.device_summary = payload
             self._apply_profile_recommendation(payload)
+            self._refresh_readiness()
             QMessageBox.information(self, "Устройство найдено", payload)
         else:
             self.update_status("[error] устройство не ответило")
             self.append_log(f"[error] {payload}")
+            self.device_ready = False
+            self.device_summary = payload
             self.recommendation_label.setText("Рекомендация профиля: не удалось проверить устройство")
+            self._refresh_readiness()
             QMessageBox.critical(self, "Ошибка проверки", payload)
+
+    def _analyze_finished(self, success: bool, payload: str) -> None:
+        self.flash_button.setEnabled(True)
+        self.download_button.setEnabled(True)
+        self.probe_button.setEnabled(True)
+        self.analyze_button.setEnabled(True)
+        if success:
+            self.update_status("[ok] прошивка проанализирована")
+            self.append_log(f"[ok] {payload}")
+            self.firmware_ready = True
+            self.firmware_summary = payload
+            self._refresh_readiness()
+            QMessageBox.information(self, "Анализ прошивки", payload)
+        else:
+            self.update_status("[error] анализ прошивки не удался")
+            self.append_log(f"[error] {payload}")
+            self.firmware_ready = False
+            self.firmware_summary = payload
+            self._refresh_readiness()
+            QMessageBox.critical(self, "Ошибка анализа", payload)
 
     def _cleanup_download_thread(self) -> None:
         if self.download_worker is not None:
@@ -540,11 +679,45 @@ class M5FlasherWindow(QMainWindow):
         self.probe_worker = None
         self.probe_thread = None
 
+    def _cleanup_analyze_thread(self) -> None:
+        if self.analyze_worker is not None:
+            self.analyze_worker.deleteLater()
+        if self.analyze_thread is not None:
+            self.analyze_thread.deleteLater()
+        self.analyze_worker = None
+        self.analyze_thread = None
+
     def append_log(self, line: str) -> None:
         self.log_output.append(line)
 
     def update_status(self, status: str) -> None:
         self.status_label.setText(status)
+
+    def _refresh_readiness(self) -> None:
+        self.device_state_label.setText(
+            f"Устройство: {'готово' if self.device_ready else 'не готово'} | {self._shorten(self.device_summary)}"
+        )
+        self.firmware_state_label.setText(
+            f"Прошивка: {'готова' if self.firmware_ready else 'не готова'} | {self._shorten(self.firmware_summary)}"
+        )
+
+        if self.device_ready and self.firmware_ready:
+            self.ready_badge.setText("ГОТОВО")
+            self.summary_state_label.setText("Статус: можно запускать прошивку")
+        else:
+            self.ready_badge.setText("НЕ ГОТОВО")
+            missing: list[str] = []
+            if not self.device_ready:
+                missing.append("проверка устройства")
+            if not self.firmware_ready:
+                missing.append("анализ .bin")
+            self.summary_state_label.setText(f"Статус: сначала выполни {', '.join(missing)}")
+
+    def _shorten(self, text: str, limit: int = 110) -> str:
+        single_line = " ".join(text.splitlines())
+        if len(single_line) <= limit:
+            return single_line
+        return single_line[: limit - 3] + "..."
 
     def open_install_guide(self) -> None:
         self._open_local_guide(INSTALL_GUIDE, "Не удалось открыть INSTALL.md")
@@ -607,6 +780,16 @@ class M5FlasherWindow(QMainWindow):
         if asset_name:
             self.append_log(f"[info] выбран профиль Gradus: {asset_name}")
         self._save_settings()
+
+    def _port_changed(self) -> None:
+        self.device_ready = False
+        self.device_summary = "Устройство еще не проверено после смены порта"
+        self._refresh_readiness()
+
+    def _firmware_changed(self) -> None:
+        self.firmware_ready = False
+        self.firmware_summary = "Прошивка изменена и требует нового анализа"
+        self._refresh_readiness()
 
     def _apply_profile_recommendation(self, probe_summary: str) -> None:
         chip_type = self._extract_probe_field(probe_summary, "Тип чипа")
