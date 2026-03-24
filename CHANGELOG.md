@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.2
+
+- добавлен Windows installer через Inno Setup и GitHub Actions
+- добавлены portable-режим через `portable.ini` и сохранение настроек в локальный `.ini`
+- добавлен экспорт логов в файл из интерфейса
+- добавлена landing-page проекта в `docs/index.html`
+
 ## v0.1.1
 
 - добавлены встроенная иконка приложения и branding assets

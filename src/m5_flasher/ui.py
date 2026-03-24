@@ -30,13 +30,14 @@ from PySide6.QtWidgets import (
 from m5_flasher import __version__
 from m5_flasher.gradus import GRADUS_PROFILES, GradusDownloadWorker, ReleaseInfo, ReleaseInfoWorker, recommend_profile
 from m5_flasher.flasher import FirmwareAnalyzeWorker, FlashConfig, FlashWorker, ProbeWorker
+from m5_flasher.runtime import app_root, create_settings, is_portable_mode
 from m5_flasher.serial_utils import PortInfo, get_serial_ports
 from m5_flasher.styles import APP_STYLESHEET
 
 
 SETTINGS_ORG = "OpenCode"
 SETTINGS_APP = "M5Flasher"
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = app_root()
 INSTALL_GUIDE = PROJECT_ROOT / "INSTALL.md"
 WINDOWS_INSTALL_GUIDE = PROJECT_ROOT / "WINDOWS_INSTALL.md"
 MAX_HISTORY_ITEMS = 12
@@ -245,7 +246,7 @@ class M5FlasherWindow(QMainWindow):
         self.device_summary = "Устройство еще не проверено"
         self.firmware_summary = "Прошивка еще не проверена"
         self.operation_history: list[str] = []
-        self.settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+        self.settings = create_settings(SETTINGS_ORG, SETTINGS_APP)
 
         self._build_ui()
         self.refresh_ports()
@@ -277,12 +278,15 @@ class M5FlasherWindow(QMainWindow):
         open_wizard_button.clicked.connect(self.show_flash_wizard)
         about_button = QPushButton("О программе")
         about_button.clicked.connect(self.show_about_dialog)
+        export_logs_button = QPushButton("Экспорт логов")
+        export_logs_button.clicked.connect(self.export_logs)
         show_onboarding_button = QPushButton("Показать onboarding")
         show_onboarding_button.clicked.connect(self.show_onboarding)
         actions_row.addWidget(open_install_button)
         actions_row.addWidget(open_windows_install_button)
         actions_row.addWidget(open_wizard_button)
         actions_row.addWidget(about_button)
+        actions_row.addWidget(export_logs_button)
         actions_row.addWidget(show_onboarding_button)
         actions_row.addStretch(1)
 
@@ -471,6 +475,10 @@ class M5FlasherWindow(QMainWindow):
         self.release_tag_label.setObjectName("panelTitleLabel")
         self.release_update_label = QLabel(f"Локальная версия: {__version__} | проверка обновлений...")
         self.release_update_label.setWordWrap(True)
+        self.portable_mode_label = QLabel(
+            f"Режим хранения настроек: {'portable' if is_portable_mode() else 'system'}"
+        )
+        self.portable_mode_label.setWordWrap(True)
         self.release_source_label = QLabel("Источник: upstream release feed")
         self.release_source_label.setWordWrap(True)
         self.release_date_label = QLabel("Дата: неизвестно")
@@ -484,6 +492,7 @@ class M5FlasherWindow(QMainWindow):
 
         layout.addWidget(self.release_tag_label)
         layout.addWidget(self.release_update_label)
+        layout.addWidget(self.portable_mode_label)
         layout.addWidget(self.release_source_label)
         layout.addWidget(self.release_date_label)
         layout.addWidget(self.release_assets_list)
@@ -500,8 +509,12 @@ class M5FlasherWindow(QMainWindow):
         clear_button = QPushButton("Очистить историю")
         clear_button.clicked.connect(self.clear_history)
 
+        export_button = QPushButton("Сохранить лог в файл")
+        export_button.clicked.connect(self.export_logs)
+
         layout.addWidget(self.history_list)
         layout.addWidget(clear_button)
+        layout.addWidget(export_button)
         return group
 
     def refresh_ports(self) -> None:
@@ -939,6 +952,25 @@ class M5FlasherWindow(QMainWindow):
         self.operation_history = []
         self.history_list.clear()
         self.settings.setValue("operation_history", self.operation_history)
+
+    def export_logs(self) -> None:
+        default_dir = app_root() if is_portable_mode() else Path.home()
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить лог",
+            str(default_dir / "gradus-flasher.log"),
+            "Log files (*.log);;Text files (*.txt)",
+        )
+        if not filename:
+            return
+
+        target = Path(filename)
+        self._export_logs_to_path(target)
+        QMessageBox.information(self, "Логи сохранены", f"Логи сохранены в:\n{target}")
+
+    def _export_logs_to_path(self, target: Path) -> None:
+        target.write_text(self.log_output.toPlainText(), encoding="utf-8")
+        self.record_operation(f"Логи сохранены: {target.name}")
 
     def _schedule_onboarding(self) -> None:
         already_seen = self.settings.value("onboarding_seen", False, type=bool)

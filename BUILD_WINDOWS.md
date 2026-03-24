@@ -27,6 +27,8 @@ build-windows.bat
 - ставит `pyinstaller`;
 - собирает `GradusFlasher.exe`.
 
+Installer `.exe` для установочной версии собирается в GitHub Actions по тегу `v*` через `windows-installer.iss`.
+
 ## Где будет результат
 
 ```text

@@ -12,6 +12,8 @@ Desktop-приложение для прошивки устройств `M5Stick
 
 История изменений: `CHANGELOG.md`
 
+Landing-page проекта: `docs/index.html`
+
 ## Возможности
 
 - Поиск доступных serial-портов
@@ -25,6 +27,7 @@ Desktop-приложение для прошивки устройств `M5Stick
 - Хакерский черно-зеленый интерфейс
 - История операций и сохранение последних настроек
 - Страница `О программе` и встроенные ссылки на релизы/репозиторий
+- Portable-режим, экспорт логов и Windows installer
 
 ## Скриншоты
 
@@ -55,10 +58,13 @@ pyinstaller --noconfirm --windowed --name GradusFlasher src/m5_flasher/main.py
 
 Автоматическая Windows-сборка настроена через GitHub Actions: `.github/workflows/windows-release.yml`
 
+Для portable-режима создай рядом с приложением файл `portable.ini`.
+
 Готовый билд после сборки:
 
 - Linux: `dist/GradusFlasher/GradusFlasher`
 - Windows после локальной сборки: `dist\GradusFlasher\GradusFlasher.exe`
+- Windows installer: `dist\GradusFlasher-Setup-v0.1.2.exe`
 
 ## Заметки
 
