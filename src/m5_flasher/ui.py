@@ -473,13 +473,13 @@ class M5FlasherWindow(QMainWindow):
 
         self.release_tag_label = QLabel("Релиз: загрузка...")
         self.release_tag_label.setObjectName("panelTitleLabel")
-        self.release_update_label = QLabel(f"Локальная версия: {__version__} | проверка обновлений...")
+        self.release_update_label = QLabel(f"Версия приложения: {__version__} | загрузка релиза прошивок...")
         self.release_update_label.setWordWrap(True)
         self.portable_mode_label = QLabel(
             f"Режим хранения настроек: {'portable' if is_portable_mode() else 'system'}"
         )
         self.portable_mode_label.setWordWrap(True)
-        self.release_source_label = QLabel("Источник: upstream release feed")
+        self.release_source_label = QLabel("Источник: gradus-firmware releases")
         self.release_source_label.setWordWrap(True)
         self.release_date_label = QLabel("Дата: неизвестно")
         self.release_date_label.setWordWrap(True)
@@ -854,14 +854,9 @@ class M5FlasherWindow(QMainWindow):
     def _release_info_finished(self, success: bool, payload: object) -> None:
         if success and isinstance(payload, ReleaseInfo):
             self.release_tag_label.setText(f"Релиз: {payload.tag_name}")
-            if payload.update_available:
-                self.release_update_label.setText(
-                    f"Локальная версия: {__version__} | доступно обновление: {payload.release_version}"
-                )
-            else:
-                self.release_update_label.setText(
-                    f"Локальная версия: {__version__} | установлена актуальная версия"
-                )
+            self.release_update_label.setText(
+                f"Версия приложения: {__version__} | релиз прошивок: {payload.release_version}"
+            )
             self.release_source_label.setText(f"Источник: {payload.source_url}")
             self.release_date_label.setText(f"Дата: {payload.published_at}")
             self.release_assets_list.clear()
@@ -870,7 +865,7 @@ class M5FlasherWindow(QMainWindow):
             self.record_operation(f"Обновлена информация о релизе {payload.tag_name}")
         else:
             self.release_tag_label.setText("Релиз: ошибка загрузки")
-            self.release_update_label.setText(f"Локальная версия: {__version__} | обновление не проверено")
+            self.release_update_label.setText(f"Версия приложения: {__version__} | релиз прошивок не загружен")
             self.release_source_label.setText("Источник: недоступен")
             self.release_date_label.setText(str(payload))
             self.release_assets_list.clear()

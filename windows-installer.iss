@@ -1,5 +1,5 @@
 #define MyAppName "Gradus Flasher"
-#define MyAppVersion "0.1.4"
+#define MyAppVersion "0.1.5"
 #define MyAppPublisher "GradusXaker"
 #define MyAppURL "https://github.com/GradusXaker/m5-flasher"
 #define MyAppExeName "GradusFlasher.exe"
@@ -17,7 +17,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 LicenseFile=
 OutputDir=dist
-OutputBaseFilename=GradusFlasher-Setup-v0.1.4
+OutputBaseFilename=GradusFlasher-Setup-v0.1.5
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
