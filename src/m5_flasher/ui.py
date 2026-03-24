@@ -6,9 +6,11 @@ from PySide6.QtCore import QSettings, QThread, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
+    QDialog,
     QCheckBox,
     QComboBox,
     QFileDialog,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -34,6 +36,112 @@ SETTINGS_APP = "M5Flasher"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 INSTALL_GUIDE = PROJECT_ROOT / "INSTALL.md"
 WINDOWS_INSTALL_GUIDE = PROJECT_ROOT / "WINDOWS_INSTALL.md"
+
+
+class FlashWizardDialog(QDialog):
+    def __init__(self, window: "M5FlasherWindow") -> None:
+        super().__init__(window)
+        self.window = window
+        self.step_index = 0
+        self.steps = [
+            (
+                "Шаг 1. Подключение",
+                "Подключи устройство по USB и нажми 'Обновить порты'. Если порт уже появился в списке, переходи дальше.",
+            ),
+            (
+                "Шаг 2. Выбор порта",
+                "Выбери правильный serial/COM-порт. Обычно это новый порт, который появился после подключения устройства.",
+            ),
+            (
+                "Шаг 3. Выбор прошивки",
+                "Выбери профиль Gradus или укажи свой .bin файл. Для большинства single-image сборок offset должен оставаться 0x0.",
+            ),
+            (
+                "Шаг 4. Boot mode",
+                "Если плата не шьется автоматически: выключи устройство, замкни G0 -> GND, подключи USB, убери перемычку и только потом запускай прошивку.",
+            ),
+            (
+                "Шаг 5. Старт",
+                "Все готово. Нажми кнопку ниже, чтобы сразу запустить прошивку из мастера.",
+            ),
+        ]
+        self._build_ui()
+        self._render_step()
+
+    def _build_ui(self) -> None:
+        self.setWindowTitle("Мастер прошивки Gradus")
+        self.resize(620, 420)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(18, 18, 18, 18)
+        root.setSpacing(14)
+
+        self.step_label = QLabel()
+        self.step_label.setObjectName("titleLabel")
+
+        self.body_label = QLabel()
+        self.body_label.setWordWrap(True)
+
+        self.hint_frame = QFrame()
+        hint_layout = QVBoxLayout(self.hint_frame)
+        self.hint_label = QLabel()
+        self.hint_label.setWordWrap(True)
+        hint_layout.addWidget(self.hint_label)
+
+        button_row = QHBoxLayout()
+        self.docs_button = QPushButton("Открыть инструкцию")
+        self.docs_button.clicked.connect(self.window.open_install_guide)
+        self.back_button = QPushButton("Назад")
+        self.back_button.clicked.connect(self.prev_step)
+        self.next_button = QPushButton("Далее")
+        self.next_button.clicked.connect(self.next_step)
+        self.flash_now_button = QPushButton("Прошить сейчас")
+        self.flash_now_button.setObjectName("flashButton")
+        self.flash_now_button.clicked.connect(self.flash_now)
+
+        button_row.addWidget(self.docs_button)
+        button_row.addStretch(1)
+        button_row.addWidget(self.back_button)
+        button_row.addWidget(self.next_button)
+        button_row.addWidget(self.flash_now_button)
+
+        root.addWidget(self.step_label)
+        root.addWidget(self.body_label)
+        root.addWidget(self.hint_frame)
+        root.addStretch(1)
+        root.addLayout(button_row)
+
+    def _render_step(self) -> None:
+        title, text = self.steps[self.step_index]
+        self.step_label.setText(title)
+        self.body_label.setText(text)
+
+        hints = {
+            0: "Подсказка: если порт не появляется, попробуй другой USB-кабель и нажми 'Обновить порты' в основном окне.",
+            1: f"Сейчас выбранный порт: {self.window.port_combo.currentText() or 'не выбран'}.",
+            2: f"Текущий профиль: {self.window.profile_combo.currentText()} | файл: {self.window.file_input.text().strip() or 'не выбран'}.",
+            3: "Если нужен подробный Windows-only сценарий, открой Windows-гайд из главного окна.",
+            4: "После запуска ты увидишь живой лог и прогресс в основном окне приложения.",
+        }
+        self.hint_label.setText(hints.get(self.step_index, ""))
+
+        self.back_button.setEnabled(self.step_index > 0)
+        self.next_button.setEnabled(self.step_index < len(self.steps) - 1)
+        self.flash_now_button.setVisible(self.step_index == len(self.steps) - 1)
+
+    def next_step(self) -> None:
+        if self.step_index < len(self.steps) - 1:
+            self.step_index += 1
+            self._render_step()
+
+    def prev_step(self) -> None:
+        if self.step_index > 0:
+            self.step_index -= 1
+            self._render_step()
+
+    def flash_now(self) -> None:
+        self.accept()
+        self.window.start_flash()
 
 
 class M5FlasherWindow(QMainWindow):
@@ -71,10 +179,13 @@ class M5FlasherWindow(QMainWindow):
         open_install_button.clicked.connect(self.open_install_guide)
         open_windows_install_button = QPushButton("Windows-гайд")
         open_windows_install_button.clicked.connect(self.open_windows_install_guide)
+        open_wizard_button = QPushButton("Мастер прошивки")
+        open_wizard_button.clicked.connect(self.show_flash_wizard)
         show_onboarding_button = QPushButton("Показать onboarding")
         show_onboarding_button.clicked.connect(self.show_onboarding)
         actions_row.addWidget(open_install_button)
         actions_row.addWidget(open_windows_install_button)
+        actions_row.addWidget(open_wizard_button)
         actions_row.addWidget(show_onboarding_button)
         actions_row.addStretch(1)
 
@@ -201,10 +312,14 @@ class M5FlasherWindow(QMainWindow):
         open_windows_docs_button = QPushButton("Открыть Windows-гайд")
         open_windows_docs_button.clicked.connect(self.open_windows_install_guide)
 
+        open_wizard_button = QPushButton("Запустить мастер")
+        open_wizard_button.clicked.connect(self.show_flash_wizard)
+
         layout.addWidget(art)
         layout.addWidget(notes)
         layout.addWidget(open_docs_button)
         layout.addWidget(open_windows_docs_button)
+        layout.addWidget(open_wizard_button)
         layout.addStretch(1)
         return group
 
@@ -365,6 +480,10 @@ class M5FlasherWindow(QMainWindow):
 
     def open_windows_install_guide(self) -> None:
         self._open_local_guide(WINDOWS_INSTALL_GUIDE, "Не удалось открыть WINDOWS_INSTALL.md")
+
+    def show_flash_wizard(self) -> None:
+        dialog = FlashWizardDialog(self)
+        dialog.exec()
 
     def _open_local_guide(self, guide_path: Path, error_title: str) -> None:
         if not guide_path.exists():
