@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from m5_flasher.gradus import GRADUS_PROFILES, GradusDownloadWorker
+from m5_flasher.gradus import GRADUS_PROFILES, GradusDownloadWorker, recommend_profile
 from m5_flasher.flasher import FlashConfig, FlashWorker, ProbeWorker
 from m5_flasher.serial_utils import PortInfo, get_serial_ports
 from m5_flasher.styles import APP_STYLESHEET
@@ -260,6 +260,9 @@ class M5FlasherWindow(QMainWindow):
         self.probe_button = QPushButton("Проверить устройство")
         self.probe_button.clicked.connect(self.probe_device)
 
+        self.recommendation_label = QLabel("Рекомендация профиля: еще не определена")
+        self.recommendation_label.setWordWrap(True)
+
         self.file_input = QLineEdit()
         self.file_input.setPlaceholderText("Выбери файл прошивки .bin")
         self.file_input.editingFinished.connect(self._save_settings)
@@ -287,9 +290,10 @@ class M5FlasherWindow(QMainWindow):
         layout.addWidget(QLabel("Файл прошивки"), 4, 0)
         layout.addWidget(self.file_input, 4, 1)
         layout.addWidget(browse_button, 4, 2)
-        layout.addWidget(self.erase_checkbox, 5, 1)
-        layout.addWidget(self.probe_button, 6, 1, alignment=Qt.AlignmentFlag.AlignLeft)
-        layout.addWidget(self.flash_button, 6, 2, alignment=Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(self.recommendation_label, 5, 0, 1, 3)
+        layout.addWidget(self.erase_checkbox, 6, 1)
+        layout.addWidget(self.probe_button, 7, 1, alignment=Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(self.flash_button, 7, 2, alignment=Qt.AlignmentFlag.AlignLeft)
 
         return group
 
@@ -512,10 +516,12 @@ class M5FlasherWindow(QMainWindow):
         if success:
             self.update_status("[ok] устройство обнаружено")
             self.append_log(f"[ok] {payload}")
+            self._apply_profile_recommendation(payload)
             QMessageBox.information(self, "Устройство найдено", payload)
         else:
             self.update_status("[error] устройство не ответило")
             self.append_log(f"[error] {payload}")
+            self.recommendation_label.setText("Рекомендация профиля: не удалось проверить устройство")
             QMessageBox.critical(self, "Ошибка проверки", payload)
 
     def _cleanup_download_thread(self) -> None:
@@ -601,6 +607,32 @@ class M5FlasherWindow(QMainWindow):
         if asset_name:
             self.append_log(f"[info] выбран профиль Gradus: {asset_name}")
         self._save_settings()
+
+    def _apply_profile_recommendation(self, probe_summary: str) -> None:
+        chip_type = self._extract_probe_field(probe_summary, "Тип чипа")
+        chip_info = self._extract_probe_field(probe_summary, "Информация о чипе")
+        recommendation = recommend_profile(chip_type, chip_info)
+
+        if recommendation.auto_select and recommendation.profile_asset:
+            profile_index = self.profile_combo.findData(recommendation.profile_asset)
+            if profile_index >= 0:
+                self.profile_combo.setCurrentIndex(profile_index)
+                selected_text = self.profile_combo.itemText(profile_index)
+                self.recommendation_label.setText(
+                    f"Рекомендация профиля: автоматически выбран {selected_text}"
+                )
+                self.append_log(f"[info] авто выбран профиль: {recommendation.profile_asset}")
+                return
+
+        self.recommendation_label.setText(f"Рекомендация профиля: {recommendation.message}")
+        self.append_log(f"[info] {recommendation.title}: {recommendation.message}")
+
+    def _extract_probe_field(self, probe_summary: str, field_name: str) -> str:
+        prefix = f"{field_name}:"
+        for line in probe_summary.splitlines():
+            if line.startswith(prefix):
+                return line.split(":", 1)[1].strip()
+        return ""
 
     def _load_settings(self) -> None:
         firmware_path = self.settings.value("firmware_path", "", type=str)

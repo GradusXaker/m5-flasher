@@ -19,11 +19,46 @@ class GradusProfile:
     note: str
 
 
+@dataclass(slots=True)
+class ProfileRecommendation:
+    profile_asset: str | None
+    title: str
+    message: str
+    auto_select: bool
+
+
 GRADUS_PROFILES = [
     GradusProfile("Gradus // M5Stick S3", "Bruce-m5stack-sticks3.bin", "Recommended for M5Stick S3"),
     GradusProfile("Gradus // M5StickC Plus2", "Bruce-m5stack-cplus2.bin", "For M5StickC Plus2"),
     GradusProfile("Gradus // M5StickC Plus 1.1", "Bruce-m5stack-cplus1_1.bin", "For M5StickC Plus 1.1"),
 ]
+
+
+def recommend_profile(chip_type: str, chip_info: str) -> ProfileRecommendation:
+    normalized = f"{chip_type} {chip_info}".lower()
+
+    if "esp32-s3" in normalized:
+        return ProfileRecommendation(
+            profile_asset="Bruce-m5stack-sticks3.bin",
+            title="Найден профиль для ESP32-S3",
+            message="Обнаружен чип семейства ESP32-S3. Для поддерживаемых профилей это однозначно похоже на M5Stick S3, профиль можно выбрать автоматически.",
+            auto_select=True,
+        )
+
+    if "esp32" in normalized:
+        return ProfileRecommendation(
+            profile_asset=None,
+            title="Найдено несколько вариантов профиля",
+            message="Обнаружен чип семейства ESP32. Для поддерживаемых M5Stick это обычно Gradus // M5StickC Plus2 или Gradus // M5StickC Plus 1.1, поэтому профиль лучше выбрать вручную.",
+            auto_select=False,
+        )
+
+    return ProfileRecommendation(
+        profile_asset=None,
+        title="Профиль не определен автоматически",
+        message="Тип чипа удалось прочитать, но для него пока нет однозначного автоподбора среди встроенных профилей Gradus.",
+        auto_select=False,
+    )
 
 
 class GradusDownloadWorker(QObject):
