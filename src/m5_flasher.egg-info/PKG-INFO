@@ -1,0 +1,44 @@
+Metadata-Version: 2.4
+Name: m5-flasher
+Version: 0.1.0
+Summary: Desktop flasher for M5Stick devices
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: PySide6>=6.8
+Requires-Dist: pyserial>=3.5
+Requires-Dist: esptool>=5.2.0
+
+# M5 Flasher
+
+Desktop app for flashing `M5Stick` devices over a serial port.
+
+## Features
+
+- Detect available serial ports
+- Choose a firmware `.bin` file
+- Flash with `esptool`
+- Show live logs and progress
+- Hacker-style black and green UI
+
+## Run
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+python -m m5_flasher.main
+```
+
+## Build
+
+```bash
+source .venv/bin/activate
+pip install pyinstaller
+pyinstaller --noconfirm --windowed --name M5Flasher src/m5_flasher/main.py
+```
+
+## Notes
+
+- Default flash offset is `0x0`
+- The app is optimized for `M5Stick` and similar ESP32-based devices
+- Some boards may need manual boot/download mode before flashing

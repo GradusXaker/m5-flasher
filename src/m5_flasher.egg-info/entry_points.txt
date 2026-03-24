@@ -1,0 +1,2 @@
+[console_scripts]
+m5-flasher = m5_flasher.main:main
