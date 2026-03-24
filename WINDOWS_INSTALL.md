@@ -122,7 +122,7 @@ pip install pyinstaller
 pyinstaller --noconfirm --windowed --name GradusFlasher src/m5_flasher/main.py
 ```
 
-Для установочной версии используй GitHub Release с файлом `GradusFlasher-Setup-v0.1.2.exe`.
+Для установочной версии используй GitHub Release с файлом `GradusFlasher-Setup-v0.1.3.exe`.
 
 ## 11. Portable-режим
 

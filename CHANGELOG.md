@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.1.3
+
+- исправлен критический баг packaged Windows-версии: вызовы `esptool` больше не запускают новый экземпляр приложения
+- probe, analyze и flash теперь работают через прямую интеграцию с `esptool` внутри процесса
+
 ## v0.1.2
 
 - добавлен Windows installer через Inno Setup и GitHub Actions

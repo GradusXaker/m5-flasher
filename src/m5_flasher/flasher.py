@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import re
-import subprocess
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import esptool
 from PySide6.QtCore import QObject, Signal
 
 
@@ -14,6 +15,57 @@ CHIP_DETECT_RE = re.compile(r"Detecting chip type\.\.\. (.+)")
 CHIP_FEATURES_RE = re.compile(r"Chip is (.+)")
 MAC_RE = re.compile(r"MAC: ([0-9a-f:]+)", re.IGNORECASE)
 ENTRY_RE = re.compile(r"Entry point: (0x[0-9a-fA-F]+)")
+
+
+class EsptoolError(RuntimeError):
+    pass
+
+
+class _LineEmitter(io.TextIOBase):
+    def __init__(self, on_line):
+        super().__init__()
+        self._on_line = on_line
+        self._buffer = ""
+
+    def write(self, text: str) -> int:
+        if not text:
+            return 0
+        self._buffer += text
+        while "\n" in self._buffer:
+            line, self._buffer = self._buffer.split("\n", 1)
+            cleaned = line.rstrip()
+            if cleaned:
+                self._on_line(cleaned)
+        return len(text)
+
+    def flush(self) -> None:
+        if self._buffer.strip():
+            self._on_line(self._buffer.rstrip())
+        self._buffer = ""
+
+
+def run_esptool(argv: list[str], on_line) -> list[str]:
+    lines: list[str] = []
+
+    def handle_line(line: str) -> None:
+        lines.append(line)
+        on_line(line)
+
+    stream = _LineEmitter(handle_line)
+    try:
+        with contextlib.redirect_stdout(stream), contextlib.redirect_stderr(stream):
+            esptool.main(argv)
+        stream.flush()
+        return lines
+    except SystemExit as exc:  # pragma: no cover - defensive path
+        stream.flush()
+        if exc.code not in (0, None):
+            raise EsptoolError("\n".join(lines[-20:]).strip() or f"esptool exited with code {exc.code}") from exc
+        return lines
+    except Exception as exc:
+        stream.flush()
+        message = "\n".join(lines[-20:]).strip() or str(exc)
+        raise EsptoolError(message) from exc
 
 
 @dataclass(slots=True)
@@ -46,9 +98,6 @@ class FlashWorker(QObject):
             if self.config.erase_before_flash:
                 self._run_command(
                     [
-                        sys.executable,
-                        "-m",
-                        "esptool",
                         "--chip",
                         "auto",
                         "--port",
@@ -62,9 +111,6 @@ class FlashWorker(QObject):
 
             self._run_command(
                 [
-                    sys.executable,
-                    "-m",
-                    "esptool",
                     "--chip",
                     "auto",
                     "--port",
@@ -87,39 +133,26 @@ class FlashWorker(QObject):
             self.progress.emit(100)
             self.state.emit("Flash complete")
             self.finished.emit(True, "Firmware flashed successfully")
-        except subprocess.CalledProcessError as exc:
-            message = "\n".join(self._last_lines[-12:]).strip() or str(exc)
+        except EsptoolError as exc:
+            message = str(exc).strip() or "Unknown esptool error"
             self.finished.emit(False, message)
         except Exception as exc:  # pragma: no cover - GUI safety path
             self.finished.emit(False, str(exc))
 
-    def _run_command(self, command: list[str], stage_name: str) -> None:
+    def _run_command(self, argv: list[str], stage_name: str) -> None:
         self.state.emit(stage_name)
-        self.log.emit(f"$ {' '.join(command)}")
+        self.log.emit(f"$ esptool {' '.join(argv)}")
 
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-        )
+        def handle_line(line: str) -> None:
+            self.log.emit(line)
+            self._last_lines.append(line)
+            if len(self._last_lines) > 200:
+                self._last_lines = self._last_lines[-200:]
+            progress_match = PROGRESS_RE.search(line)
+            if progress_match:
+                self.progress.emit(int(progress_match.group(1)))
 
-        assert process.stdout is not None
-        for raw_line in process.stdout:
-            line = raw_line.rstrip()
-            if line:
-                self.log.emit(line)
-                self._last_lines.append(line)
-                if len(self._last_lines) > 200:
-                    self._last_lines = self._last_lines[-200:]
-                progress_match = PROGRESS_RE.search(line)
-                if progress_match:
-                    self.progress.emit(int(progress_match.group(1)))
-
-        process.wait()
-        if process.returncode != 0:
-            raise subprocess.CalledProcessError(process.returncode, command)
+        run_esptool(argv, handle_line)
 
 
 class ProbeWorker(QObject):
@@ -137,9 +170,6 @@ class ProbeWorker(QObject):
         try:
             chip_output = self._run_command(
                 [
-                    sys.executable,
-                    "-m",
-                    "esptool",
                     "--chip",
                     "auto",
                     "--port",
@@ -153,9 +183,6 @@ class ProbeWorker(QObject):
 
             flash_output = self._run_command(
                 [
-                    sys.executable,
-                    "-m",
-                    "esptool",
                     "--chip",
                     "auto",
                     "--port",
@@ -170,39 +197,22 @@ class ProbeWorker(QObject):
             summary = self._build_summary(chip_output + flash_output)
             self.state.emit("Проверка устройства завершена")
             self.finished.emit(True, summary)
-        except subprocess.CalledProcessError as exc:
-            message = "\n".join(self._lines[-12:]).strip() or str(exc)
-            self.finished.emit(False, message)
+        except EsptoolError as exc:
+            self.finished.emit(False, str(exc).strip() or "Ошибка проверки устройства")
         except Exception as exc:  # pragma: no cover
             self.finished.emit(False, str(exc))
 
-    def _run_command(self, command: list[str], stage_name: str) -> list[str]:
+    def _run_command(self, argv: list[str], stage_name: str) -> list[str]:
         self.state.emit(stage_name)
-        self.log.emit(f"$ {' '.join(command)}")
+        self.log.emit(f"$ esptool {' '.join(argv)}")
 
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-        )
+        def handle_line(line: str) -> None:
+            self._lines.append(line)
+            if len(self._lines) > 200:
+                self._lines = self._lines[-200:]
+            self.log.emit(line)
 
-        lines: list[str] = []
-        assert process.stdout is not None
-        for raw_line in process.stdout:
-            line = raw_line.rstrip()
-            if line:
-                lines.append(line)
-                self._lines.append(line)
-                if len(self._lines) > 200:
-                    self._lines = self._lines[-200:]
-                self.log.emit(line)
-
-        process.wait()
-        if process.returncode != 0:
-            raise subprocess.CalledProcessError(process.returncode, command)
-        return lines
+        return run_esptool(argv, handle_line)
 
     def _build_summary(self, lines: list[str]) -> str:
         chip_type = "Не определен"
@@ -245,31 +255,10 @@ class FirmwareAnalyzeWorker(QObject):
 
         try:
             self.state.emit("Анализ прошивки")
-            command = [sys.executable, "-m", "esptool", "image-info", str(self.firmware_path)]
-            self.log.emit(f"$ {' '.join(command)}")
-
-            process = subprocess.Popen(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-            )
-
-            lines: list[str] = []
-            assert process.stdout is not None
-            for raw_line in process.stdout:
-                line = raw_line.rstrip()
-                if line:
-                    lines.append(line)
-                    self.log.emit(line)
-
-            process.wait()
-            if process.returncode != 0:
-                raise subprocess.CalledProcessError(process.returncode, command)
-
+            self.log.emit(f"$ esptool image-info {self.firmware_path}")
+            lines = run_esptool(["image-info", str(self.firmware_path)], self.log.emit)
             self.finished.emit(True, self._build_summary(lines))
-        except subprocess.CalledProcessError:
+        except EsptoolError:
             self.finished.emit(False, "Не удалось прочитать image-info для выбранной прошивки")
         except Exception as exc:  # pragma: no cover
             self.finished.emit(False, str(exc))
