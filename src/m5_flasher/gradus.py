@@ -27,6 +27,14 @@ class ProfileRecommendation:
     auto_select: bool
 
 
+@dataclass(slots=True)
+class ReleaseInfo:
+    tag_name: str
+    published_at: str
+    source_url: str
+    asset_names: list[str]
+
+
 GRADUS_PROFILES = [
     GradusProfile("Gradus // M5Stick S3", "Bruce-m5stack-sticks3.bin", "Recommended for M5Stick S3"),
     GradusProfile("Gradus // M5StickC Plus2", "Bruce-m5stack-cplus2.bin", "For M5StickC Plus2"),
@@ -94,3 +102,31 @@ class GradusDownloadWorker(QObject):
             self.finished.emit(True, str(destination))
         except Exception as exc:  # pragma: no cover - network path
             self.finished.emit(False, str(exc))
+
+
+class ReleaseInfoWorker(QObject):
+    log = Signal(str)
+    finished = Signal(bool, object)
+
+    def run(self) -> None:
+        try:
+            self.log.emit("[net] loading latest Gradus release information")
+            payload = _fetch_latest_release_payload()
+            info = ReleaseInfo(
+                tag_name=payload.get("tag_name", "unknown"),
+                published_at=payload.get("published_at", "unknown"),
+                source_url=SOURCE_REPO_URL,
+                asset_names=[asset.get("name", "") for asset in payload.get("assets", []) if asset.get("name")],
+            )
+            self.finished.emit(True, info)
+        except Exception as exc:  # pragma: no cover - network path
+            self.finished.emit(False, str(exc))
+
+
+def _fetch_latest_release_payload() -> dict:
+    request = urllib.request.Request(
+        LATEST_RELEASE_URL,
+        headers={"User-Agent": "m5-flasher"},
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.load(response)

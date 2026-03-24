@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QListWidget,
     QLineEdit,
     QMainWindow,
     QMessageBox,
@@ -25,7 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from m5_flasher.gradus import GRADUS_PROFILES, GradusDownloadWorker, recommend_profile
+from m5_flasher.gradus import GRADUS_PROFILES, GradusDownloadWorker, ReleaseInfo, ReleaseInfoWorker, recommend_profile
 from m5_flasher.flasher import FirmwareAnalyzeWorker, FlashConfig, FlashWorker, ProbeWorker
 from m5_flasher.serial_utils import PortInfo, get_serial_ports
 from m5_flasher.styles import APP_STYLESHEET
@@ -164,6 +165,8 @@ class M5FlasherWindow(QMainWindow):
         self.analyze_worker: FirmwareAnalyzeWorker | None = None
         self.download_thread: QThread | None = None
         self.download_worker: GradusDownloadWorker | None = None
+        self.release_thread: QThread | None = None
+        self.release_worker: ReleaseInfoWorker | None = None
         self.ports: list[PortInfo] = []
         self.device_ready = False
         self.firmware_ready = False
@@ -175,6 +178,9 @@ class M5FlasherWindow(QMainWindow):
         self.refresh_ports()
         self._load_settings()
         self._refresh_readiness()
+        app = QApplication.instance()
+        if app is not None and app.platformName() != "offscreen":
+            self.refresh_release_info()
         self._schedule_onboarding()
 
     def _build_ui(self) -> None:
@@ -211,7 +217,11 @@ class M5FlasherWindow(QMainWindow):
         top_row = QHBoxLayout()
         top_row.setSpacing(14)
         top_row.addWidget(self._build_flash_panel(), stretch=3)
-        top_row.addWidget(self._build_help_panel(), stretch=2)
+        right_column = QVBoxLayout()
+        right_column.setSpacing(14)
+        right_column.addWidget(self._build_help_panel(), stretch=1)
+        right_column.addWidget(self._build_release_panel(), stretch=1)
+        top_row.addLayout(right_column, stretch=2)
         root.addLayout(top_row)
 
         root.addWidget(self._build_status_panel())
@@ -376,6 +386,30 @@ class M5FlasherWindow(QMainWindow):
         layout.addStretch(1)
         return group
 
+    def _build_release_panel(self) -> QWidget:
+        group = QGroupBox("Центр релизов Gradus")
+        layout = QVBoxLayout(group)
+
+        self.release_tag_label = QLabel("Релиз: загрузка...")
+        self.release_tag_label.setObjectName("panelTitleLabel")
+        self.release_source_label = QLabel("Источник: upstream release feed")
+        self.release_source_label.setWordWrap(True)
+        self.release_date_label = QLabel("Дата: неизвестно")
+        self.release_date_label.setWordWrap(True)
+
+        self.release_assets_list = QListWidget()
+        self.release_assets_list.setAlternatingRowColors(True)
+
+        refresh_release_button = QPushButton("Обновить релиз")
+        refresh_release_button.clicked.connect(self.refresh_release_info)
+
+        layout.addWidget(self.release_tag_label)
+        layout.addWidget(self.release_source_label)
+        layout.addWidget(self.release_date_label)
+        layout.addWidget(self.release_assets_list)
+        layout.addWidget(refresh_release_button)
+        return group
+
     def refresh_ports(self) -> None:
         selected_port = self.settings.value("selected_port", "", type=str) or self.port_combo.currentData()
         self.ports = get_serial_ports()
@@ -455,6 +489,21 @@ class M5FlasherWindow(QMainWindow):
         self.update_status("[analyze] анализ выбранной прошивки")
         self.append_log(f"[analyze] firmware={firmware}")
         self.analyze_thread.start()
+
+    def refresh_release_info(self) -> None:
+        if self.release_thread is not None:
+            return
+
+        self.release_thread = QThread()
+        self.release_worker = ReleaseInfoWorker()
+        self.release_worker.moveToThread(self.release_thread)
+
+        self.release_thread.started.connect(self.release_worker.run)
+        self.release_worker.log.connect(self.append_log)
+        self.release_worker.finished.connect(self._release_info_finished)
+        self.release_worker.finished.connect(self.release_thread.quit)
+        self.release_thread.finished.connect(self._cleanup_release_thread)
+        self.release_thread.start()
 
     def start_flash(self) -> None:
         if (
@@ -686,6 +735,28 @@ class M5FlasherWindow(QMainWindow):
             self.analyze_thread.deleteLater()
         self.analyze_worker = None
         self.analyze_thread = None
+
+    def _release_info_finished(self, success: bool, payload: object) -> None:
+        if success and isinstance(payload, ReleaseInfo):
+            self.release_tag_label.setText(f"Релиз: {payload.tag_name}")
+            self.release_source_label.setText(f"Источник: {payload.source_url}")
+            self.release_date_label.setText(f"Дата: {payload.published_at}")
+            self.release_assets_list.clear()
+            self.release_assets_list.addItems(payload.asset_names)
+            self.append_log(f"[ok] release {payload.tag_name} loaded with {len(payload.asset_names)} asset(s)")
+        else:
+            self.release_tag_label.setText("Релиз: ошибка загрузки")
+            self.release_source_label.setText("Источник: недоступен")
+            self.release_date_label.setText(str(payload))
+            self.release_assets_list.clear()
+
+    def _cleanup_release_thread(self) -> None:
+        if self.release_worker is not None:
+            self.release_worker.deleteLater()
+        if self.release_thread is not None:
+            self.release_thread.deleteLater()
+        self.release_worker = None
+        self.release_thread = None
 
     def append_log(self, line: str) -> None:
         self.log_output.append(line)

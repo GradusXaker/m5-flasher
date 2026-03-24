@@ -10,9 +10,33 @@ QMainWindow, QFrame {
     background-color: #050805;
 }
 
+QListWidget {
+    background-color: #061106;
+    border: 1px solid #1a6d1a;
+    border-radius: 6px;
+    padding: 6px;
+    color: #a8ffa8;
+}
+
+QListWidget::item {
+    padding: 6px 4px;
+    border-bottom: 1px solid #0f2d0f;
+}
+
+QListWidget::item:selected {
+    background-color: #103d10;
+    color: #d7ffd7;
+}
+
 QLabel#titleLabel {
     color: #9dff9d;
     font-size: 28px;
+    font-weight: bold;
+}
+
+QLabel#panelTitleLabel {
+    color: #c7ffc7;
+    font-size: 18px;
     font-weight: bold;
 }
 
@@ -55,6 +79,10 @@ QPushButton:pressed {
 QPushButton#flashButton {
     background-color: #103d10;
     font-weight: bold;
+}
+
+QLabel {
+    line-height: 1.2;
 }
 
 QLineEdit, QComboBox, QTextEdit {
