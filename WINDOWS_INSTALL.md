@@ -1,5 +1,12 @@
 # Установка Gradus Flasher на Windows
 
+```text
+> repo: m5-flasher
+> doc: WINDOWS_INSTALL
+> purpose: Пошаговая установка Gradus Flasher на Windows
+```
+
+
 Отдельная инструкция для `Windows 10/11`.
 
 ## 1. Что установить заранее

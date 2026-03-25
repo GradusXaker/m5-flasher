@@ -1,5 +1,12 @@
 # Сборка Gradus Flasher в `.exe` на Windows
 
+```text
+> repo: m5-flasher
+> doc: BUILD_WINDOWS
+> purpose: Сборка Windows-версии и проверка итогового .exe
+```
+
+
 Из текущего Linux-окружения я не могу честно собрать и проверить нативный `Windows .exe`, поэтому подготовлен готовый сценарий сборки для Windows.
 
 Кроме локальной сборки, в репозитории настроен workflow `.github/workflows/windows-release.yml`, который собирает Windows-версию автоматически по тегу `v*`.

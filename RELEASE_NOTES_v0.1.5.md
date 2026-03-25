@@ -1,5 +1,12 @@
 # Gradus Flasher v0.1.5
 
+```text
+> repo: m5-flasher
+> doc: RELEASE_NOTES
+> purpose: Release notes для версии v0.1.5
+```
+
+
 Релиз, который связывает flasher и отдельный репозиторий прошивок `gradus-firmware`.
 
 ## Что изменилось

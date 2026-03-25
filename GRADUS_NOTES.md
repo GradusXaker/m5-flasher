@@ -1,4 +1,11 @@
-# Gradus Notes
+# Заметки Gradus
+
+```text
+> repo: m5-flasher
+> doc: GRADUS_NOTES
+> purpose: Замечания по UX, прошивкам и развитию Gradus Flasher
+```
+
 
 Цель проверки:
 

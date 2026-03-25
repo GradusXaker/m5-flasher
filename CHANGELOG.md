@@ -1,4 +1,11 @@
-# Changelog
+# История изменений
+
+```text
+> repo: m5-flasher
+> doc: CHANGELOG
+> purpose: Ключевые изменения и история релизов Gradus Flasher
+```
+
 
 ## v0.1.5
 
