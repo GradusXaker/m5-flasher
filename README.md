@@ -1,20 +1,26 @@
-# Gradus Flasher
+<div align="center">
+  <img src="docs/banner.svg" alt="Gradus Flasher Banner" width="100%" />
 
-![Gradus Flasher Banner](docs/banner.svg)
+  <h1>Gradus Flasher</h1>
+  <p><strong>Кибер-флешер для M5Stick и Gradus.</strong> Desktop-приложение для прошивки устройств через serial-порт с мастером, логами и релиз-центром.</p>
 
-Desktop-приложение для прошивки устройств `M5Stick` через serial-порт.
+  <p>
+    <img src="https://img.shields.io/badge/Python-desktop-app-111827?style=for-the-badge&logo=python&logoColor=22C55E" alt="Python desktop app" />
+    <img src="https://img.shields.io/badge/ESP32-flasher-111827?style=for-the-badge&logo=espressif&logoColor=22C55E" alt="ESP32 flasher" />
+    <img src="https://img.shields.io/badge/M5Stack-M5Stick-111827?style=for-the-badge&logoColor=22C55E" alt="M5Stack" />
+    <img src="https://img.shields.io/badge/release-v0.1.5-22C55E?style=for-the-badge&labelColor=0B1220" alt="Release" />
+  </p>
+</div>
 
-Подробная инструкция по установке и запуску: `INSTALL.md`
+```text
+> target: M5Stick / Gradus devices
+> transport: serial + esptool
+> ui: black-green hacker mode
+```
 
-Отдельная инструкция для Windows: `WINDOWS_INSTALL.md`
+## обзор
 
-Быстрая установка готовой Windows-версии: `WINDOWS_RELEASE_INSTALL.md`
-
-Сборка `.exe` под Windows: `BUILD_WINDOWS.md`
-
-История изменений: `CHANGELOG.md`
-
-Landing-page проекта: `docs/index.html`
+`Gradus Flasher` помогает быстро выбрать профиль устройства, прошивку и безопасно прошить совместимые `M5Stick`/`ESP32`-устройства через удобный desktop-интерфейс.
 
 ## Скачать готовую Windows-версию
 
