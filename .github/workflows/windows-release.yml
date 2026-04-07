@@ -47,7 +47,8 @@ jobs:
       - name: Rename installer artifact
         shell: pwsh
         run: |
-          Move-Item -Path dist\GradusFlasher-Setup-v0.1.5.exe -Destination GradusFlasher-Setup-${{ github.ref_name }}.exe
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          Move-Item -Path "dist\GradusFlasher-Setup-v$version.exe" -Destination "GradusFlasher-Setup-${{ github.ref_name }}.exe"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
